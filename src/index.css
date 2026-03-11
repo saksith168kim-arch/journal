@@ -1,0 +1,71 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Syne:wght@700;800&family=Battambang:wght@400;700&family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Default theme vars (Antigravity) — overridden by ThemeContext at runtime */
+:root {
+  --bg-base:    #060c16;
+  --bg-panel:   #0e1628;
+  --bg-card:    #080f1c;
+  --bg-hover:   #0d1828;
+  --border:     #1a2a40;
+  --border-l:   #1e3a55;
+  --acc-main:   #00e5a0;
+  --acc-header: #0a1020;
+  --text-pri:   #c8d8e8;
+  --text-mut:   #4a6a8a;
+  --text-dim:   #2a4a6a;
+  --text-drk:   #1a2a3a;
+  --grad-a:     #00e5a0;
+  --grad-b:     #00b8ff;
+}
+
+@layer base {
+  * { box-sizing: border-box; }
+  body {
+    background-color: var(--bg-base);
+    color: var(--text-pri);
+    font-family: 'Inter', 'Battambang', 'Noto Sans Khmer', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: var(--bg-base); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
+}
+
+/* Ensure full Khmer Unicode block uses Noto Sans Khmer (Battambang may miss complex clusters) */
+@font-face {
+  font-family: 'Noto Sans Khmer';
+  font-style: normal;
+  font-weight: 100 900;
+  src: local('Noto Sans Khmer');
+  unicode-range: U+1780-17FF, U+19E0-19FF, U+200C, U+25CC;
+}
+
+
+@layer utilities {
+  .font-display { font-family: 'Syne', sans-serif; }
+  .font-mono    { font-family: 'Inter', sans-serif; }
+  .theme-grad   { background: linear-gradient(135deg, var(--grad-a), var(--grad-b)); }
+  .theme-header { background-color: var(--acc-header) !important; }
+
+  /* Force all theme-sensitive classes to follow CSS variables
+     (Tailwind v3 wraps colours in rgb()/opacity which breaks hex CSS vars) */
+  .bg-bg-base   { background-color: var(--bg-base)  !important; }
+  .bg-bg-panel  { background-color: var(--bg-panel) !important; }
+  .bg-bg-card   { background-color: var(--bg-card)  !important; }
+  .bg-bg-hover  { background-color: var(--bg-hover) !important; }
+
+  .border-border       { border-color: var(--border)   !important; }
+  .border-border-light { border-color: var(--border-l) !important; }
+
+  .text-text-primary { color: var(--text-pri) !important; }
+  .text-text-muted   { color: var(--text-mut) !important; }
+  .text-text-dim     { color: var(--text-dim) !important; }
+  .text-text-dark    { color: var(--text-drk) !important; }
+
+  .text-accent-green   { color: var(--acc-main)            !important; }
+  .bg-accent-green     { background-color: var(--acc-main) !important; }
+  .border-accent-green { border-color: var(--acc-main)     !important; }
+}
