@@ -14,10 +14,10 @@ export function Tag({ children, bg = 'var(--bg-hover)', color = 'var(--text-sec)
 
 export function StatCard({ label, value, sub, color = 'var(--acc-main)' }) {
   return (
-    <div className="bg-bg-panel border border-border rounded-xl px-5 py-4 flex-1 min-w-[130px]">
-      <div className="text-text-dim text-[10px] uppercase mb-1.5">{label}</div>
-      <div className="text-[22px] font-bold" style={{ color }}>{value}</div>
-      {sub && <div className="text-text-sec text-[10px] mt-1">{sub}</div>}
+    <div className="bg-bg-panel border border-border rounded-xl px-4 py-4 flex-1" style={{ minWidth: 0, overflow: 'hidden' }}>
+      <div className="text-text-dim text-[10px] uppercase mb-1.5" style={{ whiteSpace: 'nowrap' }}>{label}</div>
+      <div className="font-bold" style={{ color, fontSize: 'clamp(13px, 3.5vw, 22px)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</div>
+      {sub && <div className="text-text-sec text-[10px] mt-1" style={{ whiteSpace: 'nowrap' }}>{sub}</div>}
     </div>
   )
 }
@@ -28,8 +28,8 @@ export function Button({ children, onClick, variant = 'primary', size = 'md', cl
 
   const variantStyles = {
     primary: { background: 'var(--grad-accent)', color: 'var(--text-inv)', border: 'none' },
-    danger: { background: 'var(--col-loss)', color: '#fff', border: 'none' },
-    ghost: { background: 'transparent', color: 'var(--text-mut)', border: '1px solid var(--border)' },
+    danger:  { background: 'var(--col-loss)', color: '#fff', border: 'none' },
+    ghost:   { background: 'transparent', color: 'var(--text-mut)', border: '1px solid var(--border)' },
     outline: { background: 'transparent', color: 'var(--text-mut)', border: '1px solid var(--border)' },
   }
 
@@ -139,8 +139,7 @@ export function Select({ label, value, onChange, options, className = '' }) {
       </button>
 
       {open && (
-        <div style={{ position: "absolute", zIndex: 50, left: 0, right: 0, marginTop: 4, background: "var(--bg-panel)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}
-          style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.6)' }}>
+        <div style={{ position: "absolute", zIndex: 50, left: 0, right: 0, marginTop: 4, background: "var(--bg-panel)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", boxShadow: '0 8px 32px rgba(0,0,0,0.6)' }}>
           <div style={{ maxHeight: 208, overflowY: "auto", padding: "4px 0" }}>
             {options.map((o) => {
               const v = getValue(o)
@@ -214,8 +213,8 @@ export function EmptyState({ message, action }) {
 export function ConfirmModal({ isOpen, onClose, onConfirm, title, message, confirmText = 'Confirm', variant = 'danger' }) {
   if (!isOpen) return null
   const iconColor = variant === 'danger' ? 'var(--col-loss)' : 'var(--col-win)'
-  const iconBg = variant === 'danger' ? 'var(--col-loss-bg)' : 'var(--col-win-bg)'
-  const btnBg = variant === 'danger' ? 'var(--col-loss)' : 'var(--col-win)'
+  const iconBg    = variant === 'danger' ? 'var(--col-loss-bg)' : 'var(--col-win-bg)'
+  const btnBg     = variant === 'danger' ? 'var(--col-loss)' : 'var(--col-win)'
 
   return (
     <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4">
