@@ -1,6 +1,5 @@
 // src/components/trades/PnlCalendar.jsx
 import { useState, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { calcTrade, fmt$, pnlColor } from '../../lib/calc'
 import { Tag } from '../ui'
 
@@ -14,22 +13,12 @@ function fmt(v) {
   return v > 0 ? `+${s}` : `-${s}`
 }
 
-function cellStyle(pnl, selected) {
-  if (selected) return { background: 'var(--acc-main)', border: '1px solid var(--acc-main)' }
-  if (pnl == null) return {}
-  if (pnl > 0) return { background: 'rgba(0,229,160,0.12)', border: '1px solid rgba(0,229,160,0.25)' }
-  if (pnl < 0) return { background: 'rgba(255,77,109,0.12)', border: '1px solid rgba(255,77,109,0.25)' }
-  return {}
-}
-
 export default function PnlCalendar({ trades }) {
   const now = new Date()
-  const navigate = useNavigate()
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth())
-  const [selectedKey, setSelectedKey] = useState(null) // 'YYYY-MM-DD'
+  const [selectedKey, setSelectedKey] = useState(null)
 
-  // Build daily map
   const dailyMap = useMemo(() => {
     const map = {}
     trades.forEach((tr) => {
@@ -46,7 +35,6 @@ export default function PnlCalendar({ trades }) {
     return map
   }, [trades])
 
-  // Calendar grid
   const firstDay = new Date(year, month, 1).getDay()
   const daysInMonth = new Date(year, month + 1, 0).getDate()
   const cells = []
@@ -56,20 +44,14 @@ export default function PnlCalendar({ trades }) {
   const weeks = []
   for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7))
 
-  const weekTotals = weeks.map((week) => {
-    let pnl = 0; let days = 0
-    week.forEach((d) => {
-      if (!d) return
+  const weeklyTotals = weeks.map((week) =>
+    week.reduce((sum, d) => {
+      if (!d) return sum
       const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-      if (dailyMap[key]) { pnl += dailyMap[key].pnl; days++ }
-    })
-    return { pnl, days }
-  })
-
-  const monthTotal = weekTotals.reduce((s, w) => s + w.pnl, 0)
-
-  const yearOptions = []
-  for (let y = now.getFullYear() - 5; y <= now.getFullYear() + 1; y++) yearOptions.push(y)
+      return sum + (dailyMap[key]?.pnl ?? 0)
+    }, 0)
+  )
+  const monthTotal = weeklyTotals.reduce((a, b) => a + b, 0)
 
   function prev() { if (month === 0) { setMonth(11); setYear(y => y - 1) } else setMonth(m => m - 1) }
   function next() { if (month === 11) { setMonth(0); setYear(y => y + 1) } else setMonth(m => m + 1) }
@@ -77,175 +59,151 @@ export default function PnlCalendar({ trades }) {
   const today = new Date()
   const selectedData = selectedKey ? dailyMap[selectedKey] : null
 
-  function handleDayClick(key, data) {
-    setSelectedKey(prev => prev === key ? null : key) // toggle
-  }
-
   return (
-    <div className="flex gap-4 items-start">
-      {/* ── Calendar Panel ── */}
-      <div className="flex-1 bg-bg-panel border border-border rounded-xl overflow-hidden">
+    <div>
+      {/* Calendar Panel */}
+      <div className="w-full bg-bg-panel border border-border rounded-xl overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
-          <div className="flex items-center gap-4">
-            {/* Month */}
-            <div className="flex items-center gap-1.5">
-              <span className="font-display font-extrabold text-[15px] w-28 text-text-primary">{MONTH_NAMES[month]}</span>
-              <div className="flex flex-col">
-                <button onClick={prev} className="flex items-center justify-center w-5 h-4 text-text-muted hover:text-accent-green cursor-pointer bg-transparent border-none transition-colors leading-none" title="Previous month">
-                  <svg width="9" height="6" viewBox="0 0 9 6" fill="none"><path d="M1 5l3.5-4L8 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                </button>
-                <button onClick={next} className="flex items-center justify-center w-5 h-4 text-text-muted hover:text-accent-green cursor-pointer bg-transparent border-none transition-colors leading-none" title="Next month">
-                  <svg width="9" height="6" viewBox="0 0 9 6" fill="none"><path d="M1 1l3.5 4L8 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                </button>
-              </div>
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-b border-border">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1">
+              <button onClick={prev} className="w-8 h-8 flex items-center justify-center rounded-md text-text-muted hover:bg-bg-hover hover:text-text-primary cursor-pointer bg-transparent border-none transition-colors">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8 2L4 6l4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              </button>
+              <button onClick={next} className="w-8 h-8 flex items-center justify-center rounded-md text-text-muted hover:bg-bg-hover hover:text-text-primary cursor-pointer bg-transparent border-none transition-colors">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              </button>
             </div>
-            {/* Year */}
-            <div className="flex items-center gap-1.5">
-              <span className="font-display font-extrabold text-[15px] w-14 text-text-primary">{year}</span>
-              <div className="flex flex-col">
-                <button onClick={() => setYear(y => y - 1)} className="flex items-center justify-center w-5 h-4 text-text-muted hover:text-accent-green cursor-pointer bg-transparent border-none transition-colors leading-none">
-                  <svg width="9" height="6" viewBox="0 0 9 6" fill="none"><path d="M1 5l3.5-4L8 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                </button>
-                <button onClick={() => setYear(y => y + 1)} className="flex items-center justify-center w-5 h-4 text-text-muted hover:text-accent-green cursor-pointer bg-transparent border-none transition-colors leading-none">
-                  <svg width="9" height="6" viewBox="0 0 9 6" fill="none"><path d="M1 1l3.5 4L8 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                </button>
-              </div>
-            </div>
+            <h2 className="text-[16px] sm:text-[18px] font-bold text-text-primary m-0">{MONTH_NAMES[month]} {year}</h2>
           </div>
-          <div className="flex items-center gap-2 text-[12px]">
-            <span className="text-text-dim">Monthly:</span>
-            <span className="font-bold" style={{ color: monthTotal > 0 ? '#00e5a0' : monthTotal < 0 ? '#ff4d6d' : '#4a6a8a' }}>
-              {monthTotal === 0 ? '$0' : (monthTotal > 0 ? '+' : '') + monthTotal.toLocaleString(undefined, { style: 'currency', currency: 'USD', minimumFractionDigits: 0 })}
-            </span>
-          </div>
+          <span className="text-[13px] sm:text-[14px] font-bold px-3 py-1 rounded-md font-mono" style={{
+            color: monthTotal > 0 ? 'var(--col-win-fixed)' : monthTotal < 0 ? 'var(--col-loss-fixed)' : 'var(--text-mut-fixed)',
+            background: monthTotal > 0 ? 'var(--col-win-bg-fixed)' : monthTotal < 0 ? 'var(--col-loss-bg-fixed)' : 'transparent',
+          }}>
+            {monthTotal === 0 ? '$0.00' : (monthTotal > 0 ? '+' : '') + monthTotal.toLocaleString(undefined, { style: 'currency', currency: 'USD', minimumFractionDigits: 2 })}
+          </span>
         </div>
 
-        <div className="flex">
-          {/* Grid */}
-          <div className="flex-1 p-3">
-            <div className="grid grid-cols-7 mb-1">
-              {DAYS.map(d => (
-                <div key={d} className="text-center text-[10px] font-semibold text-text-dim uppercase py-1.5">{d}</div>
-              ))}
-            </div>
-            {weeks.map((week, wi) => (
-              <div key={wi} className="grid grid-cols-7 gap-1 mb-1">
-                {week.map((d, di) => {
-                  if (!d) return <div key={di} />
-                  const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-                  const data = dailyMap[key]
-                  const isToday = today.getFullYear() === year && today.getMonth() === month && today.getDate() === d
-                  const isSelected = selectedKey === key
-                  const pnl = data?.pnl ?? null
-                  const wr = data && data.count > 0 ? Math.round((data.wins / data.count) * 100) : null
+        {/* Day headers */}
+        <div className="grid grid-cols-7 border-b border-border">
+          {DAYS.map(d => (
+            <div key={d} className="text-center text-[11px] font-semibold text-text-dim py-2.5 border-r border-border last:border-r-0">{d}</div>
+          ))}
+        </div>
 
-                  return (
-                    <div
-                      key={di}
-                      onClick={() => data && handleDayClick(key, data)}
-                      className={`rounded-lg p-1 sm:p-1.5 min-h-[60px] sm:min-h-[64px] flex flex-col justify-between transition-all overflow-hidden ${data ? 'cursor-pointer hover:scale-[1.03]' : ''}`}
-                      style={data ? cellStyle(pnl, isSelected) : { border: '1px solid transparent' }}
-                    >
-                      <div className={`text-[10px] font-semibold self-start w-5 h-5 flex items-center justify-center rounded-full ${isSelected ? 'bg-bg-base text-text-primary' :
-                          isToday ? 'bg-accent-green text-bg-base' : 'text-text-dim'
-                        }`}>
-                        {d}
-                      </div>
-                      {data && (
-                        <div className="flex flex-col gap-0.5">
-                          <div className="text-[10px] sm:text-[11px] font-bold leading-none truncate"
-                            style={{ color: isSelected ? 'var(--bg-base)' : pnl > 0 ? '#00e5a0' : pnl < 0 ? '#ff4d6d' : '#ffd166' }}
-                            title={fmt(pnl)}>
-                            {fmt(pnl)}
-                          </div>
-                          <div className="text-[8px] sm:text-[9px] truncate" style={{ color: isSelected ? 'rgba(0,0,0,0.55)' : 'var(--text-dim)' }}>
-                            <span className="hidden sm:inline">{data.count} trade{data.count !== 1 ? 's' : ''}{wr != null ? ` · ${wr}%` : ''}</span>
-                            <span className="sm:hidden">{data.count}T{wr != null ? ` ${wr}%` : ''}</span>
-                          </div>
-                        </div>
+        {/* Calendar grid */}
+        <div>
+          {weeks.map((week, wi) => (
+            <div key={wi} className="grid grid-cols-7 border-b border-border last:border-b-0">
+              {week.map((d, di) => {
+                if (!d) return <div key={di} className="border-r border-border last:border-r-0 min-h-[70px] sm:min-h-[85px]" style={{ background: 'color-mix(in srgb, var(--bg-base) 60%, transparent)' }} />
+                const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+                const data = dailyMap[key]
+                const isToday = today.getFullYear() === year && today.getMonth() === month && today.getDate() === d
+                const isSelected = selectedKey === key
+                const pnl = data?.pnl ?? null
+                const wr = data && data.count > 0 ? Math.round((data.wins / data.count) * 100) : null
+
+                return (
+                  <div key={di}
+                    onClick={() => data && setSelectedKey(prev => prev === key ? null : key)}
+                    className="border-r border-border last:border-r-0 min-h-[70px] sm:min-h-[85px] p-1.5 sm:p-2 flex flex-col transition-colors"
+                    style={{
+                      cursor: data ? 'pointer' : 'default',
+                      background: isSelected ? 'var(--acc-subtle-fixed)' : undefined,
+                      boxShadow: isSelected ? 'inset 3px 0 0 var(--acc-main)' : undefined,
+                    }}
+                    onMouseOver={e => { if (data && !isSelected) e.currentTarget.style.background = 'var(--bg-hover)' }}
+                    onMouseOut={e => { if (!isSelected) e.currentTarget.style.background = '' }}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[11px] sm:text-[12px] font-medium w-6 h-6 flex items-center justify-center rounded-full" style={{
+                        background: isToday ? 'var(--acc-main-fixed)' : 'transparent',
+                        color: isToday ? '#fff' : isSelected ? 'var(--acc-main-fixed)' : 'var(--text-mut-fixed)',
+                        fontWeight: isToday || isSelected ? 700 : 400,
+                      }}>{d}</span>
+                      {data && data.count > 0 && (
+                        <span className="text-[9px] text-text-dim hidden sm:inline">{data.count} trade{data.count !== 1 ? 's' : ''}</span>
                       )}
                     </div>
-                  )
-                })}
-              </div>
-            ))}
-          </div>
-
-          {/* Weekly sidebar */}
-          <div className="w-24 border-l border-border flex flex-col">
-            <div className="h-[32px] border-b border-border flex items-center justify-center">
-              <span className="text-[9px] text-text-dark uppercase tracking-wide">Week</span>
+                    {data && (
+                      <div className="mt-auto flex flex-col gap-0.5">
+                        <div className="rounded-[3px] px-1.5 py-[2px] text-[10px] sm:text-[11px] font-bold leading-tight truncate" style={{
+                          background: pnl > 0 ? 'var(--col-win-bg-fixed)' : pnl < 0 ? 'var(--col-loss-bg-fixed)' : 'var(--col-warn-bg)',
+                          color: pnl > 0 ? 'var(--col-win-fixed)' : pnl < 0 ? 'var(--col-loss-fixed)' : 'var(--col-warn-fixed)',
+                          borderLeft: `3px solid ${pnl > 0 ? 'var(--col-win-fixed)' : pnl < 0 ? 'var(--col-loss-fixed)' : 'var(--col-warn-fixed)'}`,
+                        }}>
+                          {fmt(pnl) || '$0'}
+                        </div>
+                        {wr != null && (
+                          <span className="text-[8px] sm:text-[9px] text-text-dim pl-1 truncate hidden sm:block">{wr}% win rate</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
-            {weekTotals.map((w, i) => (
-              <div key={i} className="flex-1 flex flex-col items-center justify-center border-b border-border px-2 py-2 min-h-[65px]">
-                <span className="text-[9px] text-text-dim mb-1">Week {i + 1}</span>
-                <span className="text-[12px] font-bold leading-tight text-center"
-                  style={{ color: w.pnl > 0 ? '#00e5a0' : w.pnl < 0 ? '#ff4d6d' : '#3a5a7a' }}>
-                  {w.pnl === 0 ? '$0' : fmt(w.pnl)}
-                </span>
-                {w.days > 0 && <span className="text-[9px] text-text-dark mt-0.5">{w.days}d</span>}
-              </div>
-            ))}
-            <div className="px-2 py-3 flex flex-col items-center justify-center border-t border-border bg-bg-card">
-              <span className="text-[9px] text-text-dim mb-1">Total</span>
-              <span className="text-[13px] font-bold"
-                style={{ color: monthTotal > 0 ? '#00e5a0' : monthTotal < 0 ? '#ff4d6d' : '#3a5a7a' }}>
-                {monthTotal === 0 ? '$0' : fmt(monthTotal)}
-              </span>
-            </div>
-          </div>
+          ))}
         </div>
       </div>
 
-      {/* ── Day Detail Panel ── */}
+      {/* Weekly summary row — horizontal boxes below calendar */}
+      <div className="mt-2 grid gap-1.5" style={{ gridTemplateColumns: `repeat(${weeklyTotals.length + 1}, 1fr)` }}>
+        {weeklyTotals.map((wPnl, wi) => (
+          <div key={wi} className="bg-bg-panel border border-border rounded-lg px-2 py-2 flex flex-col gap-0.5">
+            <span className="text-[9px] text-text-dim uppercase tracking-wider">Week {wi + 1}</span>
+            <span className="text-[12px] font-bold font-mono" style={{
+              color: wPnl > 0 ? 'var(--col-win-fixed)' : wPnl < 0 ? 'var(--col-loss-fixed)' : 'var(--text-mut-fixed)',
+            }}>
+              {fmt(wPnl) || '$0'}
+            </span>
+          </div>
+        ))}
+        {/* Total box */}
+        <div className="bg-bg-card border border-border rounded-lg px-2 py-2 flex flex-col gap-0.5">
+          <span className="text-[9px] text-text-dim uppercase tracking-wider">Total</span>
+          <span className="text-[12px] font-bold font-mono" style={{
+            color: monthTotal > 0 ? 'var(--col-win-fixed)' : monthTotal < 0 ? 'var(--col-loss-fixed)' : 'var(--text-mut-fixed)',
+          }}>
+            {fmt(monthTotal) || '$0'}
+          </span>
+        </div>
+      </div>
+
+      {/* Day detail panel */}
       {selectedData && (
-        <div className="w-80 bg-bg-panel border border-border rounded-xl overflow-hidden flex-shrink-0">
-          {/* Panel header */}
+        <div className="mt-3 bg-bg-panel border border-border rounded-xl overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
             <div>
-              <div className="text-[13px] font-bold text-text-primary">{selectedKey}</div>
+              <div className="text-[13px] font-bold text-text-primary font-mono">{selectedKey}</div>
               <div className="text-[11px] text-text-dim mt-0.5">
                 {selectedData.count} trade{selectedData.count !== 1 ? 's' : ''}
                 &nbsp;·&nbsp;
-                <span style={{ color: selectedData.pnl > 0 ? '#00e5a0' : selectedData.pnl < 0 ? '#ff4d6d' : '#ffd166' }}>
+                <span style={{ color: selectedData.pnl > 0 ? 'var(--col-win-fixed)' : selectedData.pnl < 0 ? 'var(--col-loss-fixed)' : 'var(--col-warn-fixed)' }}>
                   {fmt$(selectedData.pnl)}
                 </span>
               </div>
             </div>
-            <button onClick={() => setSelectedKey(null)}
-              className="w-6 h-6 flex items-center justify-center rounded-full text-text-dim hover:text-text-primary bg-transparent border-none cursor-pointer transition-colors text-[14px]">
-              ✕
-            </button>
+            <button onClick={() => setSelectedKey(null)} className="w-7 h-7 flex items-center justify-center rounded-md text-text-dim hover:text-text-primary hover:bg-bg-hover bg-transparent border-none cursor-pointer transition-colors text-[14px]">✕</button>
           </div>
-
-          {/* Trade rows */}
           <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
             {selectedData.trades.map((tr) => {
               const c = calcTrade(tr)
               return (
-                <div key={tr.id} className="px-4 py-3">
+                <div key={tr.id} className="px-4 py-3 hover:bg-bg-hover transition-colors">
                   <div className="flex items-center justify-between mb-1.5">
                     <div className="flex items-center gap-2">
                       <span className="text-[13px] font-bold text-text-primary">{tr.symbol}</span>
-                      <Tag
-                        bg={tr.direction === 'LONG' ? 'rgba(0,180,120,0.15)' : 'rgba(255,77,109,0.12)'}
-                        color={tr.direction === 'LONG' ? '#00b878' : '#ff4d6d'}
-                      >{tr.direction}</Tag>
+                      <Tag bg={tr.direction === 'LONG' ? 'var(--col-win-bg-fixed)' : 'var(--col-loss-bg-fixed)'} color={tr.direction === 'LONG' ? 'var(--col-win-fixed)' : 'var(--col-loss-fixed)'}>{tr.direction}</Tag>
                     </div>
-                    <span className="text-[13px] font-bold" style={{ color: pnlColor(c.netPnl) }}>
-                      {fmt$(c.netPnl)}
-                    </span>
+                    <span className="text-[13px] font-bold" style={{ color: pnlColor(c.netPnl) }}>{fmt$(c.netPnl)}</span>
                   </div>
                   <div className="flex items-center justify-between text-[10px] text-text-dim">
                     <span>Entry: {tr.entry?.price ?? '—'} × {tr.entry?.lotSize ?? '—'}L</span>
                     <span>Close: {tr.entry?.closePrice ?? '—'}</span>
                   </div>
-                  {tr.strategy && (
-                    <div className="mt-1.5">
-                      <Tag bg="var(--bg-hover)" color="var(--text-mut)">{tr.strategy}</Tag>
-                    </div>
-                  )}
+                  {tr.strategy && <div className="mt-1.5"><Tag bg="var(--bg-hover)" color="var(--text-sec)">{tr.strategy}</Tag></div>}
                 </div>
               )
             })}

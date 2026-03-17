@@ -7,6 +7,7 @@ const TRANSLATIONS = {
     nav_journal: 'Journal',
     nav_new_trade: 'New Trade',
     nav_analytics: 'Analytics',
+    nav_tools: 'Tools',
     nav_open: 'OPEN',
     nav_sign_out: 'Sign out',
 
@@ -14,9 +15,9 @@ const TRANSLATIONS = {
     search_placeholder: 'Search symbol…',
     filter_all: 'ALL',
     trades_count: (n) => `${n} trades`,
-    import_csv: '⬆ Import CSV',
+    import_csv: 'Import CSV',
     importing: 'Importing…',
-    export_csv: '⬇ Export CSV',
+    export_csv: 'Export CSV',
     new_trade: '+ New Trade',
     no_trades: 'No trades found. Start logging your first trade.',
     log_first_trade: '+ Log First Trade',
@@ -55,7 +56,7 @@ const TRANSLATIONS = {
     err_quantity: 'Quantity is required',
 
     // Analytics Page
-    analytics_title: '📊 Performance Analytics',
+    analytics_title: 'Performance Analytics',
     equity_curve: 'Equity Curve',
     monthly_pnl: 'Monthly P&L',
     win_loss_ratio: 'Win / Loss Ratio',
@@ -89,6 +90,7 @@ const TRANSLATIONS = {
     nav_journal: 'កំណត់ហេតុ',
     nav_new_trade: 'ពាណិជ្ជកម្មថ្មី',
     nav_analytics: 'វិភាគ',
+    nav_tools: 'ឧបករណ៍',
     nav_open: 'បើក',
     nav_sign_out: 'ចាកចេញ',
 
@@ -96,9 +98,9 @@ const TRANSLATIONS = {
     search_placeholder: 'ស្វែងរកនិមិត្តសញ្ញា…',
     filter_all: 'ទាំងអស់',
     trades_count: (n) => `${n} ពាណិជ្ជកម្ម`,
-    import_csv: '⬆ នាំចូល CSV',
+    import_csv: 'នាំចូល CSV',
     importing: 'កំពុងនាំចូល…',
-    export_csv: '⬇ នាំចេញ CSV',
+    export_csv: 'នាំចេញ CSV',
     new_trade: '+ ពាណិជ្ជកម្មថ្មី',
     no_trades: 'រកមិនឃើញពាណិជ្ជកម្ម។ ចាប់ផ្តើមកត់ត្រាពាណិជ្ជកម្មដំបូងរបស់អ្នក។',
     log_first_trade: '+ កត់ត្រាដំបូង',
@@ -137,7 +139,7 @@ const TRANSLATIONS = {
     err_quantity: 'សូមបញ្ចូលចំនួន',
 
     // Analytics Page
-    analytics_title: '📊 វិភាគប្រតិបត្តិការ',
+    analytics_title: 'វិភាគប្រតិបត្តិការ',
     equity_curve: 'តារាងដើមទុន',
     monthly_pnl: 'ចំណេញ/ខាតប្រចាំខែ',
     win_loss_ratio: 'អត្រាឈ្នះ / ចាញ់',

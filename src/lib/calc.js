@@ -15,7 +15,6 @@ function quickPnl(trade) {
 export function calcTrade(trade) {
   const { entry = {} } = trade
 
-  // Primary P&L: from the lotSize formula
   const pnl = quickPnl(trade)
   const fees = Number(entry.fees || 0)
   const grossPnl = pnl ?? 0
@@ -36,7 +35,6 @@ export function calcTrade(trade) {
 }
 
 export function calcPortfolioStats(trades) {
-  // Count trades that have a result (WIN or LOSS)
   const closed = trades.filter((t) => t.status === 'WIN' || t.status === 'LOSS')
   const calcs = closed.map((t) => ({ trade: t, ...calcTrade(t) }))
 
@@ -53,17 +51,13 @@ export function calcPortfolioStats(trades) {
       ? (avgWin * wins.length) / Math.abs(avgLoss * losses.length)
       : null
 
-  // Equity curve sorted by date
-  const sortedClosed = [...closed].sort(
-    (a, b) => new Date(a.date) - new Date(b.date)
-  )
+  const sortedClosed = [...closed].sort((a, b) => new Date(a.date) - new Date(b.date))
   let cum = 0
   const equityCurve = sortedClosed.map((t, i) => {
     cum += calcTrade(t).netPnl
     return { index: i + 1, date: t.date, symbol: t.symbol, pnl: cum }
   })
 
-  // Per-strategy breakdown
   const stratMap = {}
   closed.forEach((t) => {
     const c = calcTrade(t)
@@ -74,7 +68,6 @@ export function calcPortfolioStats(trades) {
   })
   const stratBreakdown = Object.entries(stratMap).sort((a, b) => b[1].pnl - a[1].pnl)
 
-  // Monthly P&L
   const monthMap = {}
   closed.forEach((t) => {
     const key = t.date?.slice(0, 7)
@@ -116,4 +109,6 @@ export const fmt$ = (v, decimals = 2) => {
 export const fmtN = (v) =>
   v == null ? '—' : parseFloat(v).toLocaleString(undefined, { maximumFractionDigits: 6 })
 
-export const pnlColor = (v) => (v == null ? '#4a6a8a' : v >= 0 ? '#00e5a0' : '#ff4d6d')
+// ✅ Fixed: use CSS vars instead of hardcoded hex
+export const pnlColor = (v) =>
+  v == null ? 'var(--text-mut-fixed)' : v >= 0 ? 'var(--col-win-fixed)' : 'var(--col-loss-fixed)'

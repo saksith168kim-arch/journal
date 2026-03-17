@@ -1,40 +1,94 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Syne:wght@700;800&family=Battambang:wght@400;700&family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800&family=Syne:wght@700;800&family=Battambang:wght@400;700&family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Default theme vars (Antigravity) — overridden by ThemeContext at runtime */
+/* Default theme vars — overridden by ThemeContext at runtime (backgrounds/borders only) */
 :root {
-  --bg-base:    #060c16;
-  --bg-panel:   #0e1628;
-  --bg-card:    #080f1c;
-  --bg-hover:   #0d1828;
-  --border:     #1a2a40;
-  --border-l:   #1e3a55;
-  --acc-main:   #00e5a0;
-  --acc-header: #0a1020;
-  --text-pri:   #c8d8e8;
-  --text-mut:   #4a6a8a;
-  --text-dim:   #2a4a6a;
-  --text-drk:   #1a2a3a;
-  --grad-a:     #00e5a0;
-  --grad-b:     #00b8ff;
+  --bg-base: #090e18;
+  --bg-panel: #0d1420;
+  --bg-card: #101828;
+  --bg-hover: #141e2e;
+  --bg-row-alt: #0b1219;
+  --bg-input: #0d1520;
+  --border: #1a2640;
+  --border-l: #243450;
+  --border-focus: #3b82f6;
+  --acc-main: #3b82f6;
+  --acc-glow: rgba(59, 130, 246, 0.15);
+  --acc-header: #090e18;
+  --acc-subtle: rgba(59, 130, 246, 0.08);
+  --col-win: #22c55e;
+  --col-win-bg: rgba(34, 197, 94, 0.10);
+  --col-loss: #ef4444;
+  --col-loss-bg: rgba(239, 68, 68, 0.10);
+  --col-warn: #f59e0b;
+  --col-warn-bg: rgba(245, 158, 11, 0.10);
+  --text-pri: #64748b;
+  --text-sec: #94a3b8;
+  --text-mut: #4a6070;
+  --text-dim: #2a3a50;
+  --text-inv: #090e18;
+  --font-ui: 'DM Sans', sans-serif;
+  --font-mono: 'DM Mono', 'Fira Code', monospace;
+  --font-display: 'DM Sans', sans-serif;
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(26, 38, 64, 0.8);
+  --shadow-panel: 0 4px 24px rgba(0, 0, 0, 0.4);
+  --shadow-btn: 0 0 20px rgba(59, 130, 246, 0.25);
+  --grad-a: #3b82f6;
+  --grad-b: #6366f1;
+  --grad-accent: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+
+  /* ── Pinned to Dark theme — NEVER overridden by ThemeContext ── */
+  --text-pri-fixed: #e2e8f0;
+  --text-sec-fixed: #94a3b8;
+  --text-mut-fixed: #64748b;
+  --text-dim-fixed: #475569;
+  --col-win-fixed: #22c55e;
+  --col-win-bg-fixed: rgba(34, 197, 94, 0.12);
+  --col-loss-fixed: #ef4444;
+  --col-loss-bg-fixed: rgba(239, 68, 68, 0.12);
+  --col-warn-fixed: #f59e0b;
+  --col-warn-bg-fixed: rgba(245, 158, 11, 0.12);
+  --acc-main-fixed: #3b82f6;
+  --acc-subtle-fixed: rgba(59, 130, 246, 0.10);
 }
 
 @layer base {
-  * { box-sizing: border-box; }
+  * {
+    box-sizing: border-box;
+  }
+
   body {
     background-color: var(--bg-base);
     color: var(--text-pri);
-    font-family: 'Inter', 'Battambang', 'Noto Sans Khmer', sans-serif;
+    font-family: var(--font-ui);
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
-  ::-webkit-scrollbar { width: 5px; height: 5px; }
-  ::-webkit-scrollbar-track { background: var(--bg-base); }
-  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
+
+  input,
+  textarea,
+  select,
+  button {
+    font-family: var(--font-ui);
+  }
+
+  ::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: var(--bg-base);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 999px;
+  }
 }
 
-/* Ensure full Khmer Unicode block uses Noto Sans Khmer (Battambang may miss complex clusters) */
 @font-face {
   font-family: 'Noto Sans Khmer';
   font-style: normal;
@@ -43,29 +97,152 @@
   unicode-range: U+1780-17FF, U+19E0-19FF, U+200C, U+25CC;
 }
 
-
 @layer utilities {
-  .font-display { font-family: 'Syne', sans-serif; }
-  .font-mono    { font-family: 'Inter', sans-serif; }
-  .theme-grad   { background: linear-gradient(135deg, var(--grad-a), var(--grad-b)); }
-  .theme-header { background-color: var(--acc-header) !important; }
+  .font-display {
+    font-family: var(--font-display);
+  }
 
-  /* Force all theme-sensitive classes to follow CSS variables
-     (Tailwind v3 wraps colours in rgb()/opacity which breaks hex CSS vars) */
-  .bg-bg-base   { background-color: var(--bg-base)  !important; }
-  .bg-bg-panel  { background-color: var(--bg-panel) !important; }
-  .bg-bg-card   { background-color: var(--bg-card)  !important; }
-  .bg-bg-hover  { background-color: var(--bg-hover) !important; }
+  .font-mono {
+    font-family: var(--font-mono) !important;
+  }
 
-  .border-border       { border-color: var(--border)   !important; }
-  .border-border-light { border-color: var(--border-l) !important; }
+  .theme-grad {
+    background: var(--grad-accent);
+  }
 
-  .text-text-primary { color: var(--text-pri) !important; }
-  .text-text-muted   { color: var(--text-mut) !important; }
-  .text-text-dim     { color: var(--text-dim) !important; }
-  .text-text-dark    { color: var(--text-drk) !important; }
+  .theme-header {
+    background-color: var(--acc-header) !important;
+  }
 
-  .text-accent-green   { color: var(--acc-main)            !important; }
-  .bg-accent-green     { background-color: var(--acc-main) !important; }
-  .border-accent-green { border-color: var(--acc-main)     !important; }
+  .bg-bg-base {
+    background-color: var(--bg-base) !important;
+  }
+
+  .bg-bg-panel {
+    background-color: var(--bg-panel) !important;
+  }
+
+  .bg-bg-card {
+    background-color: var(--bg-card) !important;
+  }
+
+  .bg-bg-hover {
+    background-color: var(--bg-hover) !important;
+  }
+
+  .border-border {
+    border-color: var(--border) !important;
+  }
+
+  .border-border-light {
+    border-color: var(--border-l) !important;
+  }
+
+  /* Text — always pinned to dark theme values */
+  .text-text-primary {
+    color: var(--text-pri-fixed) !important;
+  }
+
+  .text-text-muted {
+    color: var(--text-mut-fixed) !important;
+  }
+
+  .text-text-dim {
+    color: var(--text-dim-fixed) !important;
+  }
+
+  .text-text-dark {
+    color: var(--text-dim-fixed) !important;
+  }
+
+  .text-text-sec {
+    color: var(--text-sec-fixed) !important;
+  }
+
+  /* Semantic accent — always pinned to dark theme values */
+  .text-accent-green {
+    color: var(--col-win-fixed) !important;
+  }
+
+  .text-accent-red {
+    color: var(--col-loss-fixed) !important;
+  }
+
+  .text-accent-yellow {
+    color: var(--col-warn-fixed) !important;
+  }
+
+  .text-accent-blue {
+    color: var(--acc-main-fixed) !important;
+  }
+
+  .text-accent-orange {
+    color: var(--col-warn-fixed) !important;
+  }
+
+  .text-accent-lime {
+    color: var(--col-win-fixed) !important;
+  }
+
+  .bg-accent-green {
+    background-color: var(--col-win-fixed) !important;
+  }
+
+  .bg-accent-red {
+    background-color: var(--col-loss-fixed) !important;
+  }
+
+  .border-accent-green {
+    border-color: var(--col-win-fixed) !important;
+  }
+
+  .border-accent-red {
+    border-color: var(--col-loss-fixed) !important;
+  }
+
+  .border-accent-orange {
+    border-color: var(--col-warn-fixed) !important;
+  }
+
+  .hover\:bg-bg-hover:hover {
+    background-color: var(--bg-hover) !important;
+  }
+
+  .hover\:text-accent-green:hover {
+    color: var(--col-win-fixed) !important;
+  }
+
+  .hover\:text-accent-red:hover {
+    color: var(--col-loss-fixed) !important;
+  }
+
+  .hover\:border-accent-green:hover {
+    border-color: var(--col-win-fixed) !important;
+  }
+
+  .hover\:border-accent-red:hover {
+    border-color: var(--col-loss-fixed) !important;
+  }
+
+  .hover\:border-accent-orange:hover {
+    border-color: var(--col-warn-fixed) !important;
+  }
+
+  .focus\:border-accent-green:focus {
+    border-color: var(--acc-main) !important;
+  }
+
+  .bg-bg-base\/30 {
+    background-color: color-mix(in srgb, var(--bg-base) 30%, transparent) !important;
+  }
+
+  .bg-accent-green\/5 {
+    background-color: var(--col-win-bg-fixed) !important;
+  }
+}
+
+/* Khmer language font override */
+:lang(km),
+:lang(km) * {
+  font-family: 'Battambang', 'Noto Sans Khmer', sans-serif !important;
 }

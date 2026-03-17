@@ -1,6 +1,7 @@
 // src/components/ui/index.jsx
 import { useState, useRef, useEffect } from 'react'
-export function Tag({ children, bg = '#1a2540', color = '#4a6a8a', className = '' }) {
+
+export function Tag({ children, bg = 'var(--bg-hover)', color = 'var(--text-sec)', className = '' }) {
   return (
     <span
       className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase ${className}`}
@@ -11,12 +12,12 @@ export function Tag({ children, bg = '#1a2540', color = '#4a6a8a', className = '
   )
 }
 
-export function StatCard({ label, value, sub, color = '#00e5a0' }) {
+export function StatCard({ label, value, sub, color = 'var(--acc-main)' }) {
   return (
     <div className="bg-bg-panel border border-border rounded-xl px-5 py-4 flex-1 min-w-[130px]">
       <div className="text-text-dim text-[10px] uppercase mb-1.5">{label}</div>
       <div className="text-[22px] font-bold" style={{ color }}>{value}</div>
-      {sub && <div className="text-text-dark text-[10px] mt-1">{sub}</div>}
+      {sub && <div className="text-text-sec text-[10px] mt-1">{sub}</div>}
     </div>
   )
 }
@@ -24,18 +25,39 @@ export function StatCard({ label, value, sub, color = '#00e5a0' }) {
 export function Button({ children, onClick, variant = 'primary', size = 'md', className = '', type = 'button', disabled = false }) {
   const base = 'font-bold rounded-lg transition-all cursor-pointer border-none outline-none'
   const sizes = { sm: 'text-[11px] px-3 py-1.5', md: 'text-[12px] px-5 py-2.5', lg: 'text-[13px] px-7 py-3' }
-  const variants = {
-    primary: 'bg-accent-green text-bg-base hover:brightness-110',
-    danger: 'bg-accent-red text-white hover:brightness-110',
-    ghost: 'bg-transparent text-text-muted border border-border hover:border-accent-green hover:text-accent-green',
-    outline: 'bg-transparent text-text-muted border border-border hover:text-text-primary',
+
+  const variantStyles = {
+    primary: { background: 'var(--grad-accent)', color: 'var(--text-inv)', border: 'none' },
+    danger: { background: 'var(--col-loss)', color: '#fff', border: 'none' },
+    ghost: { background: 'transparent', color: 'var(--text-mut)', border: '1px solid var(--border)' },
+    outline: { background: 'transparent', color: 'var(--text-mut)', border: '1px solid var(--border)' },
   }
+
   return (
     <button
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className={`${base} ${sizes[size]} ${variants[variant]} ${disabled ? 'opacity-40 cursor-not-allowed' : ''} ${className}`}
+      className={`${base} ${sizes[size]} ${disabled ? 'opacity-40 cursor-not-allowed' : ''} ${className}`}
+      style={variantStyles[variant]}
+      onMouseOver={e => {
+        if (disabled) return
+        if (variant === 'ghost' || variant === 'outline') {
+          e.currentTarget.style.borderColor = 'var(--acc-main)'
+          e.currentTarget.style.color = 'var(--acc-main)'
+        } else {
+          e.currentTarget.style.filter = 'brightness(1.1)'
+        }
+      }}
+      onMouseOut={e => {
+        if (disabled) return
+        if (variant === 'ghost' || variant === 'outline') {
+          e.currentTarget.style.borderColor = 'var(--border)'
+          e.currentTarget.style.color = 'var(--text-mut)'
+        } else {
+          e.currentTarget.style.filter = 'brightness(1)'
+        }
+      }}
     >
       {children}
     </button>
@@ -44,11 +66,11 @@ export function Button({ children, onClick, variant = 'primary', size = 'md', cl
 
 export function Input({ label, hint, hintColor, value, onChange, type = 'text', placeholder, className = '' }) {
   return (
-    <div className={className}>
+    <div style={{ width: '100%', boxSizing: 'border-box', minWidth: 0 }}>
       {label && (
-        <label className="flex justify-between text-[10px] text-text-dim uppercase mb-1.5">
+        <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-dim-fixed)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
           <span>{label}</span>
-          {hint && <span style={{ color: hintColor || '#4a6a8a' }} className="normal-case tracking-normal">{hint}</span>}
+          {hint && <span style={{ color: hintColor || 'var(--text-sec-fixed)', textTransform: 'none', letterSpacing: 'normal' }}>{hint}</span>}
         </label>
       )}
       <input
@@ -56,12 +78,19 @@ export function Input({ label, hint, hintColor, value, onChange, type = 'text', 
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full bg-bg-panel border border-border rounded-lg text-text-primary text-[12px] px-3 py-2.5 outline-none focus:border-accent-green transition-colors"
+        style={{
+          display: 'block', width: '100%', boxSizing: 'border-box',
+          background: 'var(--bg-panel)', border: '1px solid var(--border)',
+          borderRadius: 8, color: 'var(--text-pri-fixed)', fontSize: 13,
+          padding: '10px 12px', outline: 'none', transition: 'border-color 0.2s',
+          fontFamily: 'var(--font-ui)',
+        }}
+        onFocus={e => e.target.style.borderColor = 'var(--acc-main)'}
+        onBlur={e => e.target.style.borderColor = 'var(--border)'}
       />
     </div>
   )
 }
-
 
 export function Select({ label, value, onChange, options, className = '' }) {
   const [open, setOpen] = useState(false)
@@ -81,16 +110,24 @@ export function Select({ label, value, onChange, options, className = '' }) {
   }, [])
 
   return (
-    <div className={`relative ${className}`} ref={ref}>
+    <div className={`relative ${className}`} ref={ref} style={{ width: "100%", boxSizing: "border-box", minWidth: 0 }}>
       {label && (
-        <label className="block text-[11px] text-text-dim uppercase mb-1.5">{label}</label>
+        <label style={{ display: "block", fontSize: 10, color: "var(--text-dim-fixed)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>{label}</label>
       )}
-      {/* Trigger */}
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className={`w-full flex items-center justify-between bg-bg-panel border rounded-lg text-text-muted text-[12px] px-3 py-2.5 outline-none transition-colors cursor-pointer text-left ${open ? 'border-accent-green text-text-primary' : 'border-border hover:border-border-light'
-          }`}
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          width: '100%', boxSizing: 'border-box',
+          background: 'var(--bg-panel)',
+          border: `1px solid ${open ? 'var(--acc-main)' : 'var(--border)'}`,
+          borderRadius: 8,
+          color: open ? 'var(--text-pri-fixed)' : 'var(--text-sec-fixed)',
+          fontSize: 13, padding: '10px 12px', outline: 'none',
+          cursor: 'pointer', textAlign: 'left',
+          fontFamily: 'var(--font-ui)', transition: 'all 0.2s',
+        }}
       >
         <span>{displayLabel}</span>
         <svg
@@ -101,11 +138,10 @@ export function Select({ label, value, onChange, options, className = '' }) {
         </svg>
       </button>
 
-      {/* Dropdown panel */}
       {open && (
-        <div className="absolute z-50 left-0 right-0 mt-1 bg-bg-panel border border-border rounded-xl shadow-2xl overflow-hidden"
+        <div style={{ position: "absolute", zIndex: 50, left: 0, right: 0, marginTop: 4, background: "var(--bg-panel)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}
           style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.6)' }}>
-          <div className="max-h-52 overflow-y-auto py-1">
+          <div style={{ maxHeight: 208, overflowY: "auto", padding: "4px 0" }}>
             {options.map((o) => {
               const v = getValue(o)
               const l = getLabel(o)
@@ -115,15 +151,20 @@ export function Select({ label, value, onChange, options, className = '' }) {
                   key={v}
                   type="button"
                   onClick={() => { onChange(v); setOpen(false) }}
-                  className={`w-full text-left px-3.5 py-2 text-[12px] transition-colors cursor-pointer border-none flex items-center justify-between gap-2 ${isActive
-                    ? 'bg-accent-green/10 text-accent-green'
-                    : 'bg-transparent text-text-muted hover:bg-bg-hover hover:text-text-primary'
-                    }`}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    gap: 8, width: '100%', boxSizing: 'border-box',
+                    textAlign: 'left', padding: '8px 14px', fontSize: 13,
+                    cursor: 'pointer', border: 'none',
+                    background: isActive ? 'var(--acc-subtle)' : 'transparent',
+                    color: isActive ? 'var(--acc-main-fixed)' : 'var(--text-pri-fixed)',
+                    fontFamily: 'var(--font-ui)', transition: 'background 0.15s',
+                  }}
                 >
                   {l}
                   {isActive && (
                     <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className="flex-shrink-0">
-                      <path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="#00e5a0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   )}
                 </button>
@@ -135,7 +176,6 @@ export function Select({ label, value, onChange, options, className = '' }) {
     </div>
   )
 }
-
 
 export function Modal({ children, onClose }) {
   return (
@@ -156,7 +196,7 @@ export function Modal({ children, onClose }) {
 export function Spinner() {
   return (
     <div className="flex items-center justify-center h-full min-h-[200px]">
-      <div className="w-8 h-8 border-2 border-border border-t-accent-green rounded-full animate-spin" />
+      <div className="w-8 h-8 rounded-full animate-spin" style={{ border: '2px solid var(--border)', borderTopColor: 'var(--acc-main)' }} />
     </div>
   )
 }
@@ -173,12 +213,16 @@ export function EmptyState({ message, action }) {
 
 export function ConfirmModal({ isOpen, onClose, onConfirm, title, message, confirmText = 'Confirm', variant = 'danger' }) {
   if (!isOpen) return null
+  const iconColor = variant === 'danger' ? 'var(--col-loss)' : 'var(--col-win)'
+  const iconBg = variant === 'danger' ? 'var(--col-loss-bg)' : 'var(--col-win-bg)'
+  const btnBg = variant === 'danger' ? 'var(--col-loss)' : 'var(--col-win)'
+
   return (
     <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4">
       <div className="bg-bg-panel border border-border rounded-2xl w-full max-w-sm overflow-hidden" onClick={e => e.stopPropagation()}>
         <div className="p-6">
           <div className="flex items-center gap-3 mb-4">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${variant === 'danger' ? 'bg-accent-red/10 text-accent-red' : 'bg-accent-green/10 text-accent-green'}`}>
+            <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: iconBg, color: iconColor }}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
@@ -190,17 +234,20 @@ export function ConfirmModal({ isOpen, onClose, onConfirm, title, message, confi
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-2.5 rounded-lg font-bold text-text-primary bg-bg-hover hover:bg-border transition-colors border-none cursor-pointer"
+              className="flex-1 py-2.5 rounded-lg font-bold transition-colors border-none cursor-pointer"
+              style={{ background: 'var(--bg-hover)', color: 'var(--text-pri)' }}
+              onMouseOver={e => e.currentTarget.style.background = 'var(--border)'}
+              onMouseOut={e => e.currentTarget.style.background = 'var(--bg-hover)'}
             >
               Cancel
             </button>
             <button
               type="button"
-              onClick={() => {
-                onConfirm()
-                onClose()
-              }}
-              className={`flex-1 py-2.5 rounded-lg font-bold text-white transition-colors border-none cursor-pointer ${variant === 'danger' ? 'bg-accent-red hover:bg-[#ff6b87]' : 'bg-accent-green hover:bg-[#33ffbb]'}`}
+              onClick={() => { onConfirm(); onClose() }}
+              className="flex-1 py-2.5 rounded-lg font-bold text-white transition-colors border-none cursor-pointer"
+              style={{ background: btnBg }}
+              onMouseOver={e => e.currentTarget.style.filter = 'brightness(1.1)'}
+              onMouseOut={e => e.currentTarget.style.filter = 'brightness(1)'}
             >
               {confirmText}
             </button>

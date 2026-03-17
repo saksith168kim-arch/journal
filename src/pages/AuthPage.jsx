@@ -19,7 +19,18 @@ export default function AuthPage() {
     if (user) navigate('/', { replace: true })
   }, [user, navigate])
 
-  const inp = 'w-full bg-[#080f1c] border border-[#1a2a40] rounded-lg text-[#c8d8e8] text-[14px] px-4 py-3 outline-none focus:border-[#00e5a0] transition-colors'
+  const inp = {
+    width: '100%',
+    background: 'var(--bg-input)',
+    border: '1px solid var(--border)',
+    borderRadius: 8,
+    color: 'var(--text-pri)',
+    fontSize: 14,
+    padding: '12px 16px',
+    outline: 'none',
+    transition: 'border-color 0.2s',
+    fontFamily: 'var(--font-ui)',
+  }
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -50,44 +61,62 @@ export default function AuthPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#060c16] flex items-center justify-center p-4">
+    <div style={{ minHeight: '100vh', background: 'var(--bg-base)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div style={{ width: '100%', maxWidth: 420 }}>
 
-      <div className="w-full max-w-md">
-        {/* Language switcher on auth page */}
-        <div className="flex justify-end mb-6">
-          <div className="flex items-center rounded-lg overflow-hidden border border-[#1a2a40] text-[12px] font-semibold">
-            <button
-              onClick={() => setLang('en')}
-              className={`px-3 py-1.5 transition-colors cursor-pointer border-none ${lang === 'en' ? 'bg-[#00e5a0] text-[#060c16]' : 'bg-transparent text-[#4a6a8a] hover:text-[#c8d8e8]'}`}
-            >EN</button>
-            <button
-              onClick={() => setLang('km')}
-              className={`px-3 py-1.5 transition-colors cursor-pointer border-none ${lang === 'km' ? 'bg-[#00e5a0] text-[#060c16]' : 'bg-transparent text-[#4a6a8a] hover:text-[#c8d8e8]'}`}
-            >KH</button>
+        {/* Language switcher */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 24 }}>
+          <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', fontSize: 12, fontWeight: 600 }}>
+            {['en', 'km'].map((l) => (
+              <button key={l} onClick={() => setLang(l)} style={{
+                padding: '6px 14px', border: 'none', cursor: 'pointer', transition: 'all 0.15s',
+                background: lang === l ? 'var(--grad-accent)' : 'transparent',
+                color: lang === l ? '#fff' : 'var(--text-mut)',
+              }}>{l === 'en' ? 'EN' : 'KH'}</button>
+            ))}
           </div>
         </div>
 
-        <div className="flex items-center gap-3 justify-center mb-10">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg,#00e5a0,#00b8ff)' }}>
+        {/* Logo */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'center', marginBottom: 36 }}>
+          <div style={{
+            width: 40, height: 40, borderRadius: 12,
+            background: 'var(--grad-accent)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: 'var(--shadow-btn)',
+          }}>
             <svg width="18" height="18" viewBox="0 0 14 14" fill="none">
-              <polyline points="0,11 4,6 8,9 14,2" stroke="#060c16" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+              <polyline points="0,11 4,6 8,9 14,2" stroke="#fff" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </div>
-          <span style={{ fontFamily: "'Syne', sans-serif", fontSize: 22, fontWeight: 800, color: '#fff', letterSpacing: -0.5 }}>{t('brand_name')}</span>
-          <span className="text-[9px] text-[#2a4a6a] mt-1">PRO</span>
+          <span style={{ fontFamily: "'Syne', sans-serif", fontSize: 22, fontWeight: 800, color: 'var(--text-pri)', letterSpacing: -0.5 }}>{t('brand_name')}</span>
+          <span style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 4, letterSpacing: '0.1em' }}>PRO</span>
         </div>
 
-        <div className="bg-[#0e1628] border border-[#1a2a40] rounded-2xl p-8">
-          <h1 style={{ fontFamily: "'Syne',sans-serif", fontSize: 20, fontWeight: 800, color: '#fff', marginBottom: 6 }}>
+        {/* Card */}
+        <div style={{
+          background: 'var(--bg-panel)',
+          border: '1px solid var(--border)',
+          borderRadius: 20,
+          padding: 32,
+          boxShadow: 'var(--shadow-panel)',
+        }}>
+          <h1 style={{ fontFamily: "'Syne', sans-serif", fontSize: 20, fontWeight: 800, color: 'var(--text-pri)', marginBottom: 6 }}>
             {mode === 'login' ? t('welcome_back') : t('create_account')}
           </h1>
-          <p className="text-[#3a5a7a] text-[13px] mb-6">
+          <p style={{ color: 'var(--text-mut)', fontSize: 13, marginBottom: 24 }}>
             {mode === 'login' ? t('sign_in_sub') : t('register_sub')}
           </p>
 
-          <button
-            onClick={handleGoogle}
-            className="w-full flex items-center justify-center gap-3 bg-[#080f1c] border border-[#1a2a40] rounded-lg py-3 text-[#c8d8e8] text-[13px] font-semibold hover:border-[#00e5a0] transition-colors mb-5 cursor-pointer"
+          {/* Google button */}
+          <button onClick={handleGoogle} style={{
+            width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+            background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10,
+            padding: '12px 16px', color: 'var(--text-pri)', fontSize: 13, fontWeight: 600,
+            cursor: 'pointer', transition: 'border-color 0.2s', marginBottom: 20, fontFamily: 'var(--font-ui)',
+          }}
+            onMouseOver={e => e.currentTarget.style.borderColor = 'var(--acc-main)'}
+            onMouseOut={e => e.currentTarget.style.borderColor = 'var(--border)'}
           >
             <svg width="16" height="16" viewBox="0 0 24 24">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -98,47 +127,58 @@ export default function AuthPage() {
             {t('google_btn')}
           </button>
 
-          <div className="flex items-center gap-3 mb-5">
-            <div className="flex-1 h-px bg-[#1a2a40]" />
-            <span className="text-[#2a4a6a] text-[11px]">OR</span>
-            <div className="flex-1 h-px bg-[#1a2a40]" />
+          {/* Divider */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+            <span style={{ color: 'var(--text-dim)', fontSize: 11, letterSpacing: '0.08em' }}>OR</span>
+            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {mode === 'register' && (
               <div>
-                <label className="block text-[11px] text-[#3a5a7a] uppercase mb-1.5">{t('label_name')}</label>
-                <input className={inp} type="text" placeholder="John Doe" value={name} onChange={e => setName(e.target.value)} required />
+                <label style={{ display: 'block', fontSize: 11, color: 'var(--text-mut)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>{t('label_name')}</label>
+                <input style={inp} type="text" placeholder="John Doe" value={name} onChange={e => setName(e.target.value)} required
+                  onFocus={e => e.target.style.borderColor = 'var(--acc-main)'}
+                  onBlur={e => e.target.style.borderColor = 'var(--border)'} />
               </div>
             )}
             <div>
-              <label className="block text-[11px] text-[#3a5a7a] uppercase mb-1.5">{t('label_email')}</label>
-              <input className={inp} type="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} required />
+              <label style={{ display: 'block', fontSize: 11, color: 'var(--text-mut)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>{t('label_email')}</label>
+              <input style={inp} type="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} required
+                onFocus={e => e.target.style.borderColor = 'var(--acc-main)'}
+                onBlur={e => e.target.style.borderColor = 'var(--border)'} />
             </div>
             <div>
-              <label className="block text-[11px] text-[#3a5a7a] uppercase mb-1.5">{t('label_password')}</label>
-              <input className={inp} type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required />
+              <label style={{ display: 'block', fontSize: 11, color: 'var(--text-mut)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>{t('label_password')}</label>
+              <input style={inp} type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required
+                onFocus={e => e.target.style.borderColor = 'var(--acc-main)'}
+                onBlur={e => e.target.style.borderColor = 'var(--border)'} />
             </div>
 
             {error && (
-              <div className="bg-[#2e0d1a] border border-[#ff4d6d33] rounded-lg px-4 py-2.5 text-[#ff4d6d] text-[12px]">
+              <div style={{
+                background: 'var(--col-loss-bg)', border: '1px solid var(--col-loss)',
+                borderRadius: 8, padding: '10px 14px', color: 'var(--col-loss)', fontSize: 12, opacity: 0.9,
+              }}>
                 {error}
               </div>
             )}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-[#00e5a0] text-[#060c16] font-bold text-[14px] py-3 rounded-lg hover:brightness-110 transition-all disabled:opacity-50 cursor-pointer"
-            >
+            <button type="submit" disabled={loading} style={{
+              width: '100%', background: 'var(--grad-accent)', border: 'none', borderRadius: 10,
+              color: '#fff', fontWeight: 700, fontSize: 14, padding: '13px 16px',
+              cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1,
+              transition: 'all 0.15s', boxShadow: 'var(--shadow-btn)', fontFamily: 'var(--font-ui)',
+            }}>
               {loading ? t('btn_please_wait') : mode === 'login' ? t('btn_sign_in') : t('btn_create_account')}
             </button>
           </form>
 
-          <p className="text-center text-[#3a5a7a] text-[12px] mt-5">
+          <p style={{ textAlign: 'center', color: 'var(--text-mut)', fontSize: 12, marginTop: 20 }}>
             {mode === 'login' ? t('no_account') : t('have_account')}{' '}
             <button onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError('') }}
-              className="text-[#00e5a0] underline cursor-pointer bg-transparent border-none">
+              style={{ color: 'var(--acc-main)', textDecoration: 'underline', cursor: 'pointer', background: 'none', border: 'none', fontFamily: 'var(--font-ui)', fontSize: 12 }}>
               {mode === 'login' ? t('sign_up') : t('sign_in_link')}
             </button>
           </p>

@@ -1,4 +1,4 @@
-// src/pages/TradePage.jsx  (used for both New and Edit)
+// src/pages/TradePage.jsx
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useTrades } from '../hooks/useTrades'
@@ -12,10 +12,20 @@ const ASSETS = ['Stocks', 'Forex', 'Crypto', 'Options', 'Futures', 'ETF']
 
 const emptyForm = () => ({
   date: new Date().toISOString().slice(0, 10),
-  symbol: '', asset: 'Stocks', direction: 'LONG',
+  symbol: 'XAUUSD', asset: 'Forex', direction: 'LONG',
   strategy: 'Breakout', notes: '',
   entry: { price: '', lotSize: '', closePrice: '', fees: '', imageUrl: null, imagePath: null },
 })
+
+const card = {
+  background: 'var(--bg-card)',
+  border: '1px solid var(--border)',
+  borderRadius: 12,
+  padding: 20,
+  marginBottom: 16,
+  width: '100%',
+  boxSizing: 'border-box',
+}
 
 export default function TradePage() {
   const { id } = useParams()
@@ -27,7 +37,6 @@ export default function TradePage() {
   const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState({})
 
-  // Load existing trade for edit
   useEffect(() => {
     if (isEdit && trades.length) {
       const tr = trades.find((x) => x.id === id)
@@ -68,7 +77,6 @@ export default function TradePage() {
         profit = form.direction === 'SHORT' ? (ep - cp) * ls * 100 : (cp - ep) * ls * 100
       }
       const autoStatus = profit == null ? null : profit > 0 ? 'WIN' : profit < 0 ? 'LOSS' : null
-
       const trade = {
         date: form.date,
         symbol: form.symbol.toUpperCase().trim(),
@@ -86,11 +94,7 @@ export default function TradePage() {
           imagePath: form.entry.imagePath || null,
         },
       }
-      if (isEdit) {
-        await updateTrade(id, trade)
-      } else {
-        await addTrade(trade)
-      }
+      if (isEdit) { await updateTrade(id, trade) } else { await addTrade(trade) }
       navigate('/')
     } catch (err) {
       alert('Save failed: ' + err.message)
@@ -101,16 +105,19 @@ export default function TradePage() {
 
   return (
     <Layout>
-      <div className="max-w-2xl mx-auto">
-        <h1 className="text-[20px] font-extrabold text-text-primary mb-6">
+      <div style={{ maxWidth: 640, margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
+        <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-pri)', marginBottom: 20 }}>
           {isEdit ? t('edit_trade') : t('log_new_trade')}
         </h1>
 
         {/* Trade Info */}
-        <div className="bg-bg-card border border-border rounded-xl p-5 mb-4">
-          <h2 className="text-[14px] font-extrabold text-text-primary mb-4">{t('trade_info')}</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div style={card}>
+          <h2 style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-pri)', marginBottom: 16 }}>{t('trade_info')}</h2>
+
+          {/* Stack all fields vertically on mobile, 2-col on wider screens */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <Input label={t('label_date')} type="date" value={form.date} onChange={(v) => setForm((f) => ({ ...f, date: v }))} />
+
             <div>
               <Input
                 label={t('label_symbol')}
@@ -118,22 +125,32 @@ export default function TradePage() {
                 value={form.symbol}
                 onChange={(v) => setForm((f) => ({ ...f, symbol: v.toUpperCase() }))}
               />
-              {errors.symbol && <p className="text-accent-red text-[11px] mt-1">{errors.symbol}</p>}
+              {errors.symbol && <p style={{ color: 'var(--col-loss)', fontSize: 11, marginTop: 4 }}>{errors.symbol}</p>}
             </div>
+
             <Select label={t('label_asset')} value={form.asset} onChange={(v) => setForm((f) => ({ ...f, asset: v }))} options={ASSETS} />
             <Select label={t('label_strategy')} value={form.strategy} onChange={(v) => setForm((f) => ({ ...f, strategy: v }))} options={STRATEGIES} />
 
-            {/* Direction toggle */}
-            <div className="sm:col-span-2">
-              <label className="block text-[11px] text-text-dim uppercase mb-2">{t('label_direction')}</label>
-              <div className="flex gap-2">
+            {/* Direction */}
+            <div>
+              <label style={{ display: 'block', fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
+                {t('label_direction')}
+              </label>
+              <div style={{ display: 'flex', gap: 8 }}>
                 {['LONG', 'SHORT'].map((d) => (
                   <button key={d} onClick={() => setForm((f) => ({ ...f, direction: d }))}
-                    className="flex-1 py-2.5 rounded-lg text-[12px] font-bold cursor-pointer transition-all border"
                     style={{
-                      background: form.direction === d ? (d === 'LONG' ? '#0d2e1f' : '#2e0d1a') : '#060c16',
-                      borderColor: form.direction === d ? (d === 'LONG' ? '#00e5a0' : '#ff4d6d') : '#1a2a40',
-                      color: form.direction === d ? (d === 'LONG' ? '#00e5a0' : '#ff4d6d') : '#3a5a7a',
+                      flex: 1, padding: '10px 0', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                      cursor: 'pointer', transition: 'all 0.15s', fontFamily: 'var(--font-ui)',
+                      background: form.direction === d
+                        ? (d === 'LONG' ? 'var(--col-win-bg)' : 'var(--col-loss-bg)')
+                        : 'var(--bg-base)',
+                      border: `1px solid ${form.direction === d
+                        ? (d === 'LONG' ? 'var(--col-win)' : 'var(--col-loss)')
+                        : 'var(--border)'}`,
+                      color: form.direction === d
+                        ? (d === 'LONG' ? 'var(--col-win)' : 'var(--col-loss)')
+                        : 'var(--text-mut)',
                     }}>
                     {d}
                   </button>
@@ -146,22 +163,30 @@ export default function TradePage() {
         {/* Position entry */}
         <PositionEntryForm form={form} setForm={setForm} />
         {errors.price && (
-          <p className="text-accent-red text-[12px] -mt-2 mb-4">{errors.price}</p>
+          <p style={{ color: 'var(--col-loss)', fontSize: 12, marginTop: -8, marginBottom: 16 }}>{errors.price}</p>
         )}
 
         {/* Notes */}
-        <div className="bg-bg-card border border-border rounded-xl p-5 mb-6">
-          <h2 className="text-[14px] font-extrabold text-text-primary mb-4">{t('label_notes')}</h2>
+        <div style={card}>
+          <h2 style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-pri)', marginBottom: 16 }}>{t('label_notes')}</h2>
           <textarea
             value={form.notes}
             onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
             rows={3}
             placeholder={t('notes_placeholder')}
-            className="w-full bg-bg-panel border border-border rounded-lg text-text-primary text-[13px] px-3 py-2.5 outline-none focus:border-accent-green transition-colors resize-y leading-relaxed"
+            style={{
+              width: '100%', boxSizing: 'border-box',
+              background: 'var(--bg-panel)', border: '1px solid var(--border)',
+              borderRadius: 8, color: 'var(--text-pri)', fontSize: 13, padding: '10px 12px',
+              outline: 'none', transition: 'border-color 0.2s', resize: 'vertical',
+              lineHeight: 1.6, fontFamily: 'var(--font-ui)',
+            }}
+            onFocus={e => e.target.style.borderColor = 'var(--acc-main)'}
+            onBlur={e => e.target.style.borderColor = 'var(--border)'}
           />
         </div>
 
-        <div className="flex gap-3">
+        <div style={{ display: 'flex', gap: 12 }}>
           <Button onClick={handleSubmit} disabled={saving} size="lg">
             {saving ? t('btn_saving') : isEdit ? t('btn_update') : t('btn_log')}
           </Button>
