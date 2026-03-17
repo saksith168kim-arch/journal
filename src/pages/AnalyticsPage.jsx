@@ -25,8 +25,8 @@ const CustomTooltip = ({ active, payload, label }) => {
 function WinGauge({ wins, losses, be, winRate }) {
   const total = wins + losses + be
   const lossPct = total > 0 ? losses / total : 0
-  const bePct = total > 0 ? be / total : 0
-  const winPct = total > 0 ? wins / total : 0
+  const bePct   = total > 0 ? be     / total : 0
+  const winPct  = total > 0 ? wins   / total : 0
   const CX = 60, CY = 58, R = 44, SW = 10
   const pt = (angleDeg) => {
     const rad = (angleDeg * Math.PI) / 180
@@ -38,7 +38,7 @@ function WinGauge({ wins, losses, be, winRate }) {
     return <path d={`M ${s.x} ${s.y} A ${R} ${R} 0 ${(endDeg - startDeg) > 180 ? 1 : 0} 0 ${e.x} ${e.y}`} fill="none" stroke={color} strokeWidth={SW} strokeLinecap="butt" />
   }
   const lossEnd = 180 - lossPct * 180
-  const beEnd = lossEnd - bePct * 180
+  const beEnd   = lossEnd - bePct * 180
   return (
     <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 14, padding: '14px 16px' }}>
       <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.09em', marginBottom: 2 }}>Trade Win %</div>
@@ -91,11 +91,11 @@ function AIReview({ trades, stats }) {
           wr: ((d.wins / d.count) * 100).toFixed(0)
         })),
         recentTrades: trades.slice(0, 10).map(tr => {
-          let c = {}; try { c = calcTrade(tr) } catch { }
+          let c = {}; try { c = calcTrade(tr) } catch {}
           return { symbol: tr.symbol, direction: tr.direction, status: tr.status, pnl: c.netPnl?.toFixed(2), strategy: tr.strategy, date: tr.date }
         })
       }
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
+      const res = await fetch('/api/ai-review', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -316,20 +316,20 @@ function Achievements({ trades, stats }) {
     )
 
     return [
-      { id: 'first', emoji: '🎯', name: 'First Blood', desc: 'Logged your first trade', earned: trades.length >= 1 },
-      { id: 'ten', emoji: '📈', name: 'Getting Started', desc: '10 trades logged', earned: trades.length >= 10 },
-      { id: 'fifty', emoji: '🚀', name: 'Committed', desc: '50 trades logged', earned: trades.length >= 50 },
-      { id: 'hundred', emoji: '💯', name: 'Centurion', desc: '100 trades logged', earned: trades.length >= 100 },
-      { id: 'streak3', emoji: '🔥', name: 'On Fire', desc: '3 win streak', earned: maxWinStreak >= 3 },
-      { id: 'streak5', emoji: '⚡', name: 'Unstoppable', desc: '5 win streak', earned: maxWinStreak >= 5 },
-      { id: 'winrate60', emoji: '🎪', name: 'Sharp Shooter', desc: '60%+ win rate', earned: stats.winRate >= 60 },
-      { id: 'winrate75', emoji: '🏹', name: 'Sniper', desc: '75%+ win rate', earned: stats.winRate >= 75 },
-      { id: 'profit', emoji: '💰', name: 'In The Green', desc: 'Net positive P&L', earned: stats.totalNet > 0 },
-      { id: 'pf2', emoji: '📊', name: 'Profit Machine', desc: 'Profit factor above 2.0', earned: (stats.profitFactor || 0) >= 2 },
-      { id: 'multisym', emoji: '🌍', name: 'Diversified', desc: 'Traded 3+ different symbols', earned: symbols.size >= 3 },
-      { id: 'multistrat', emoji: '🧠', name: 'Strategist', desc: 'Used 3+ different strategies', earned: strategies.size >= 3 },
-      { id: 'days10', emoji: '📅', name: 'Consistent', desc: '10+ profitable trading days', earned: profitableDays.size >= 10 },
-      { id: 'rr2', emoji: '⚖️', name: 'Risk Manager', desc: 'Average R:R above 2.0', earned: (stats.rr || 0) >= 2 },
+      { id: 'first',      emoji: '🎯', name: 'First Blood',       desc: 'Logged your first trade',         earned: trades.length >= 1 },
+      { id: 'ten',        emoji: '📈', name: 'Getting Started',    desc: '10 trades logged',                earned: trades.length >= 10 },
+      { id: 'fifty',      emoji: '🚀', name: 'Committed',          desc: '50 trades logged',                earned: trades.length >= 50 },
+      { id: 'hundred',    emoji: '💯', name: 'Centurion',          desc: '100 trades logged',               earned: trades.length >= 100 },
+      { id: 'streak3',    emoji: '🔥', name: 'On Fire',            desc: '3 win streak',                    earned: maxWinStreak >= 3 },
+      { id: 'streak5',    emoji: '⚡', name: 'Unstoppable',        desc: '5 win streak',                    earned: maxWinStreak >= 5 },
+      { id: 'winrate60',  emoji: '🎪', name: 'Sharp Shooter',      desc: '60%+ win rate',                   earned: stats.winRate >= 60 },
+      { id: 'winrate75',  emoji: '🏹', name: 'Sniper',             desc: '75%+ win rate',                   earned: stats.winRate >= 75 },
+      { id: 'profit',     emoji: '💰', name: 'In The Green',       desc: 'Net positive P&L',                earned: stats.totalNet > 0 },
+      { id: 'pf2',        emoji: '📊', name: 'Profit Machine',     desc: 'Profit factor above 2.0',         earned: (stats.profitFactor || 0) >= 2 },
+      { id: 'multisym',   emoji: '🌍', name: 'Diversified',        desc: 'Traded 3+ different symbols',     earned: symbols.size >= 3 },
+      { id: 'multistrat', emoji: '🧠', name: 'Strategist',         desc: 'Used 3+ different strategies',    earned: strategies.size >= 3 },
+      { id: 'days10',     emoji: '📅', name: 'Consistent',         desc: '10+ profitable trading days',     earned: profitableDays.size >= 10 },
+      { id: 'rr2',        emoji: '⚖️', name: 'Risk Manager',       desc: 'Average R:R above 2.0',           earned: (stats.rr || 0) >= 2 },
     ]
   }, [trades, stats])
 
