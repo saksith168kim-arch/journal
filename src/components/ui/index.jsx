@@ -28,8 +28,8 @@ export function Button({ children, onClick, variant = 'primary', size = 'md', cl
 
   const variantStyles = {
     primary: { background: 'var(--grad-accent)', color: 'var(--text-inv)', border: 'none' },
-    danger:  { background: 'var(--col-loss)', color: '#fff', border: 'none' },
-    ghost:   { background: 'transparent', color: 'var(--text-mut)', border: '1px solid var(--border)' },
+    danger: { background: 'var(--col-loss)', color: '#fff', border: 'none' },
+    ghost: { background: 'transparent', color: 'var(--text-mut)', border: '1px solid var(--border)' },
     outline: { background: 'transparent', color: 'var(--text-mut)', border: '1px solid var(--border)' },
   }
 
@@ -213,8 +213,8 @@ export function EmptyState({ message, action }) {
 export function ConfirmModal({ isOpen, onClose, onConfirm, title, message, confirmText = 'Confirm', variant = 'danger' }) {
   if (!isOpen) return null
   const iconColor = variant === 'danger' ? 'var(--col-loss)' : 'var(--col-win)'
-  const iconBg    = variant === 'danger' ? 'var(--col-loss-bg)' : 'var(--col-win-bg)'
-  const btnBg     = variant === 'danger' ? 'var(--col-loss)' : 'var(--col-win)'
+  const iconBg = variant === 'danger' ? 'var(--col-loss-bg)' : 'var(--col-win-bg)'
+  const btnBg = variant === 'danger' ? 'var(--col-loss)' : 'var(--col-win)'
 
   return (
     <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4">
