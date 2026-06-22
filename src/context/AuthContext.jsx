@@ -1,4 +1,5 @@
 // src/context/AuthContext.jsx
+import { createContext, useContext, useEffect, useState } from 'react'
 import {
   onAuthStateChanged,
   signInWithRedirect,
@@ -69,28 +70,25 @@ function SplashScreen() {
   )
 }
 
-// ─── Save or fetch user profile from Firestore ────────────────────────────────
 async function syncUserProfile(firebaseUser) {
   const ref = doc(db, 'users', firebaseUser.uid)
   const snap = await getDoc(ref)
 
   if (!snap.exists()) {
-    // New user — create profile with free role
     const profile = {
       uid: firebaseUser.uid,
       email: firebaseUser.email,
       displayName: firebaseUser.displayName || '',
       photoURL: firebaseUser.photoURL || '',
-      role: 'free',             // 'free' | 'pro' | 'admin'
-      tradeLimit: 10,           // free users max 10 trades
-      subscribedUntil: null,    // date when pro expires
+      role: 'free',
+      tradeLimit: 10,
+      subscribedUntil: null,
       createdAt: serverTimestamp(),
       lastLogin: serverTimestamp(),
     }
     await setDoc(ref, profile)
     return profile
   } else {
-    // Existing user — update last login
     const data = snap.data()
     await setDoc(ref, { lastLogin: serverTimestamp() }, { merge: true })
     return data
@@ -103,7 +101,6 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Handle redirect result
     getRedirectResult(auth).then(async (cred) => {
       if (cred?.user) {
         const profile = await syncUserProfile(cred.user)
@@ -125,10 +122,9 @@ export function AuthProvider({ children }) {
     return unsub
   }, [])
 
- // TO:
-const loginWithGoogle = async () => {
-  await signInWithRedirect(auth, googleProvider)
-}
+  const loginWithGoogle = async () => {
+    await signInWithRedirect(auth, googleProvider)
+  }
 
   const loginWithEmail = async (email, password) => {
     const cred = await signInWithEmailAndPassword(auth, email, password)
@@ -150,7 +146,6 @@ const loginWithGoogle = async () => {
     return signOut(auth)
   }
 
-  // ─── Handy helpers ───────────────────────────────────────────────────────────
   const isAdmin = userProfile?.role === 'admin'
   const isPro = userProfile?.role === 'pro' || userProfile?.role === 'admin'
   const isFree = userProfile?.role === 'free'
