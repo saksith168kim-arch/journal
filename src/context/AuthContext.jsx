@@ -1,8 +1,8 @@
 // src/context/AuthContext.jsx
-import { createContext, useContext, useEffect, useState } from 'react'
 import {
   onAuthStateChanged,
-  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
@@ -10,9 +10,9 @@ import {
   setPersistence,
   browserLocalPersistence,
 } from 'firebase/auth'
-import { auth, googleProvider } from '../lib/firebase'
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
+import { auth, googleProvider, db } from '../lib/firebase'
 
-// Keep the user logged in after closing & reopening the browser
 setPersistence(auth, browserLocalPersistence).catch(() => { })
 
 const AuthContext = createContext(null)
@@ -21,50 +21,44 @@ function SplashScreen() {
   return (
     <div style={{
       position: 'fixed', inset: 0,
-      background: '#090e18',
+      background: '#050B14',
       display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center',
       gap: 20, zIndex: 9999,
     }}>
-      {/* Logo */}
       <div style={{
         width: 56, height: 56, borderRadius: 16,
-        background: 'linear-gradient(135deg, #3b82f6, #6366f1)',
+        background: 'linear-gradient(135deg, #32E6D5, #0EA5E9)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        boxShadow: '0 0 32px rgba(59,130,246,0.4)',
+        boxShadow: '0 0 32px rgba(50,230,213,0.4)',
         animation: 'tl-pulse 1.8s ease-in-out infinite',
       }}>
         <svg width="24" height="24" viewBox="0 0 14 14" fill="none">
-          <polyline points="0,11 4,6 8,9 14,2" stroke="#fff" strokeWidth="2.5"
+          <polyline points="0,11 4,6 8,9 14,2" stroke="#03121A" strokeWidth="2.6"
             fill="none" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </div>
-
-      {/* Brand name */}
       <div style={{ textAlign: 'center' }}>
         <div style={{ fontSize: 22, fontWeight: 800, color: '#e2e8f0', letterSpacing: '-0.03em', fontFamily: 'system-ui, sans-serif' }}>
-          TradeLog
+          AI Trading Journal
         </div>
-        <div style={{ fontSize: 10, color: '#2a3a50', letterSpacing: '0.18em', marginTop: 3, textTransform: 'uppercase', fontFamily: 'system-ui, sans-serif' }}>
+        <div style={{ fontSize: 10, color: '#3b556b', letterSpacing: '0.18em', marginTop: 3, textTransform: 'uppercase', fontFamily: 'system-ui, sans-serif' }}>
           PRO
         </div>
       </div>
-
-      {/* Spinner dots */}
       <div style={{ display: 'flex', gap: 7, marginTop: 8 }}>
         {[0, 1, 2].map(i => (
           <div key={i} style={{
             width: 7, height: 7, borderRadius: '50%',
-            background: '#3b82f6',
+            background: '#32E6D5',
             animation: `tl-bounce 1.2s ease-in-out ${i * 0.2}s infinite`,
           }} />
         ))}
       </div>
-
       <style>{`
         @keyframes tl-pulse {
-          0%, 100% { transform: scale(1); box-shadow: 0 0 32px rgba(59,130,246,0.4); }
-          50%       { transform: scale(1.06); box-shadow: 0 0 48px rgba(59,130,246,0.65); }
+          0%, 100% { transform: scale(1); box-shadow: 0 0 32px rgba(50,230,213,0.4); }
+          50%       { transform: scale(1.06); box-shadow: 0 0 48px rgba(50,230,213,0.65); }
         }
         @keyframes tl-bounce {
           0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
@@ -75,33 +69,105 @@ function SplashScreen() {
   )
 }
 
+// ─── Save or fetch user profile from Firestore ────────────────────────────────
+async function syncUserProfile(firebaseUser) {
+  const ref = doc(db, 'users', firebaseUser.uid)
+  const snap = await getDoc(ref)
+
+  if (!snap.exists()) {
+    // New user — create profile with free role
+    const profile = {
+      uid: firebaseUser.uid,
+      email: firebaseUser.email,
+      displayName: firebaseUser.displayName || '',
+      photoURL: firebaseUser.photoURL || '',
+      role: 'free',             // 'free' | 'pro' | 'admin'
+      tradeLimit: 10,           // free users max 10 trades
+      subscribedUntil: null,    // date when pro expires
+      createdAt: serverTimestamp(),
+      lastLogin: serverTimestamp(),
+    }
+    await setDoc(ref, profile)
+    return profile
+  } else {
+    // Existing user — update last login
+    const data = snap.data()
+    await setDoc(ref, { lastLogin: serverTimestamp() }, { merge: true })
+    return data
+  }
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
+  const [userProfile, setUserProfile] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => {
-      setUser(u)
+    // Handle redirect result
+    getRedirectResult(auth).then(async (cred) => {
+      if (cred?.user) {
+        const profile = await syncUserProfile(cred.user)
+        setUserProfile(profile)
+      }
+    }).catch(() => {})
+
+    const unsub = onAuthStateChanged(auth, async (u) => {
+      if (u) {
+        const profile = await syncUserProfile(u)
+        setUser(u)
+        setUserProfile(profile)
+      } else {
+        setUser(null)
+        setUserProfile(null)
+      }
       setLoading(false)
     })
     return unsub
   }, [])
 
-  const loginWithGoogle = () => signInWithPopup(auth, googleProvider)
+ // TO:
+const loginWithGoogle = async () => {
+  await signInWithRedirect(auth, googleProvider)
+}
 
-  const loginWithEmail = (email, password) =>
-    signInWithEmailAndPassword(auth, email, password)
+  const loginWithEmail = async (email, password) => {
+    const cred = await signInWithEmailAndPassword(auth, email, password)
+    const profile = await syncUserProfile(cred.user)
+    setUserProfile(profile)
+    return cred
+  }
 
   const registerWithEmail = async (email, password, displayName) => {
     const cred = await createUserWithEmailAndPassword(auth, email, password)
     await updateProfile(cred.user, { displayName })
+    const profile = await syncUserProfile(cred.user)
+    setUserProfile(profile)
     return cred
   }
 
-  const logout = () => signOut(auth)
+  const logout = () => {
+    setUserProfile(null)
+    return signOut(auth)
+  }
+
+  // ─── Handy helpers ───────────────────────────────────────────────────────────
+  const isAdmin = userProfile?.role === 'admin'
+  const isPro = userProfile?.role === 'pro' || userProfile?.role === 'admin'
+  const isFree = userProfile?.role === 'free'
 
   return (
-    <AuthContext.Provider value={{ user, loading, loginWithGoogle, loginWithEmail, registerWithEmail, logout }}>
+    <AuthContext.Provider value={{
+      user,
+      userProfile,
+      loading,
+      isAdmin,
+      isPro,
+      isFree,
+      loginWithGoogle,
+      loginWithEmail,
+      registerWithEmail,
+      logout,
+    }}>
       {loading ? <SplashScreen /> : children}
     </AuthContext.Provider>
   )
