@@ -83,22 +83,23 @@ export default function AuthPage() {
   }
 
   async function handleGoogle() {
-    if (googleLoading.current) return
-    googleLoading.current = true
-    setError('')
-    setLoading(true)
-    try {
-      await loginWithGoogle()
-    } catch (err) {
-      if (err.code !== 'auth/cancelled-popup-request' &&
-          err.code !== 'auth/popup-closed-by-user') {
-        setError(err.message)
-      }
-    } finally {
-      setLoading(false)
-      googleLoading.current = false
+  if (googleLoading.current) return
+  googleLoading.current = true
+  setError('')
+  setLoading(true)
+  try {
+    await loginWithGoogle()
+    navigate('/dashboard', { replace: true })  // ← ADD THIS LINE
+  } catch (err) {
+    if (err.code !== 'auth/cancelled-popup-request' &&
+        err.code !== 'auth/popup-closed-by-user') {
+      setError(err.message)
     }
+  } finally {
+    setLoading(false)
+    googleLoading.current = false
   }
+}
 
   const inputStyle = (field) => ({
     width: '100%',
