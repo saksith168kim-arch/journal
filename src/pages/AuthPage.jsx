@@ -1,15 +1,10 @@
 // src/pages/AuthPage.jsx
-// Restyled to match the premium fintech homepage: dark #050B14 canvas,
-// cyan/teal glassmorphism, ambient glows, split marketing + form layout.
-// All auth logic, i18n (useLang/t), language toggle and routes are preserved.
-
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useAuth } from '../context/AuthContext'
 import { useLang } from '../context/LanguageContext'
 
-/* Design tokens — shared with HomePage */
 const C = {
   bg: '#050B14',
   primary: '#32E6D5',
@@ -20,7 +15,6 @@ const C = {
   border: 'rgba(255,255,255,0.08)',
 }
 
-/* Brand mark (kept as a named export — other files may import it) */
 function ZoqiraLogo({ size = 34 }) {
   return (
     <div style={{
@@ -64,6 +58,7 @@ export default function AuthPage() {
   const [loading, setLoading] = useState(false)
   const [showPw, setShowPw] = useState(false)
   const [focusField, setFocusField] = useState(null)
+  const googleLoading = useRef(false)
 
   useEffect(() => {
     if (user) navigate('/dashboard', { replace: true })
@@ -88,19 +83,22 @@ export default function AuthPage() {
   }
 
   async function handleGoogle() {
-  setError('')
-  setLoading(true)
-  try {
-    await loginWithGoogle()
-  } catch (err) {
-    if (err.code !== 'auth/cancelled-popup-request' && 
-        err.code !== 'auth/popup-closed-by-user') {
-      setError(err.message)
+    if (googleLoading.current) return
+    googleLoading.current = true
+    setError('')
+    setLoading(true)
+    try {
+      await loginWithGoogle()
+    } catch (err) {
+      if (err.code !== 'auth/cancelled-popup-request' &&
+          err.code !== 'auth/popup-closed-by-user') {
+        setError(err.message)
+      }
+    } finally {
+      setLoading(false)
+      googleLoading.current = false
     }
-  } finally {
-    setLoading(false)
   }
-}
 
   const inputStyle = (field) => ({
     width: '100%',
@@ -121,7 +119,6 @@ export default function AuthPage() {
       <Styles />
       <div className="ath-ambient" aria-hidden />
 
-      {/* Top bar */}
       <nav className="ath-nav">
         <div className="ath-brand">
           <ZoqiraLogo size={32} />
@@ -145,9 +142,7 @@ export default function AuthPage() {
         </div>
       </nav>
 
-      {/* Body */}
       <div className="ath-body">
-        {/* Left marketing panel */}
         <motion.div
           className="ath-aside"
           initial={{ opacity: 0, x: -24 }}
@@ -192,7 +187,6 @@ export default function AuthPage() {
           </div>
         </motion.div>
 
-        {/* Right auth card */}
         <motion.div
           className="ath-cardwrap"
           initial={{ opacity: 0, y: 24 }}
@@ -219,7 +213,7 @@ export default function AuthPage() {
                 <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" />
                 <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
               </svg>
-              {t('google_btn')}
+              {loading ? 'Please wait...' : t('google_btn')}
             </button>
 
             <div className="ath-divider"><span>or</span></div>
@@ -285,7 +279,6 @@ export default function AuthPage() {
   )
 }
 
-/* Scoped styles */
 function Styles() {
   return (
     <style>{`
@@ -299,10 +292,7 @@ function Styles() {
 .ath-ambient::before, .ath-ambient::after { content:''; position:absolute; border-radius:50%; filter: blur(90px); }
 .ath-ambient::before { top:-12%; right:-8%; width:48vw; height:48vw; background: radial-gradient(circle, rgba(50,230,213,0.16), transparent 70%); }
 .ath-ambient::after  { bottom:-16%; left:-8%; width:46vw; height:46vw; background: radial-gradient(circle, rgba(14,165,233,0.14), transparent 70%); }
-
 .ath-glass { background: rgba(255,255,255,0.03); border: 1px solid ${C.border}; border-radius: 22px; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
-
-/* Buttons */
 .ath-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-weight: 600; border-radius: 12px; cursor: pointer; border: 1px solid transparent; font-family: inherit; transition: transform .2s, box-shadow .2s, background .2s; }
 .ath-btn--sm { padding: 8px 16px; font-size: 13px; }
 .ath-btn--ghost { color: #fff; background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.16); }
@@ -310,8 +300,6 @@ function Styles() {
 .ath-btn--primary { color: #03121A; background: linear-gradient(135deg, ${C.primary}, ${C.secondary}); box-shadow: 0 10px 30px -10px ${C.glow}; }
 .ath-btn--primary:hover { transform: translateY(-1px); box-shadow: 0 16px 40px -10px rgba(50,230,213,0.55); }
 .ath-btn--primary:disabled { opacity: .6; cursor: not-allowed; transform: none; }
-
-/* Nav */
 .ath-nav { position: relative; z-index: 2; display: flex; align-items: center; justify-content: space-between; padding: 16px 28px; border-bottom: 1px solid ${C.border}; gap: 12px; flex-wrap: wrap; }
 .ath-brand { display: inline-flex; align-items: center; gap: 10px; }
 .ath-brand__name { font-size: 17px; font-weight: 700; letter-spacing: -.3px; }
@@ -320,11 +308,7 @@ function Styles() {
 .ath-lang { display: flex; border: 1px solid rgba(255,255,255,0.12); border-radius: 9px; overflow: hidden; }
 .ath-lang__btn { padding: 7px 12px; border: none; cursor: pointer; background: transparent; color: ${C.muted}; font-size: 11px; font-weight: 700; font-family: inherit; }
 .ath-lang__btn.active { background: linear-gradient(135deg, ${C.primary}, ${C.secondary}); color: #03121A; }
-
-/* Body / layout */
 .ath-body { position: relative; z-index: 2; flex: 1; display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 48px; align-items: center; max-width: 1140px; width: 100%; margin: 0 auto; padding: 48px 28px; }
-
-/* Left aside */
 .ath-eyebrow { font-size: 12px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; color: ${C.primary}; margin-bottom: 16px; }
 .ath-aside__title { font-size: clamp(32px, 4vw, 48px); font-weight: 800; line-height: 1.08; letter-spacing: -1px; margin: 0 0 16px; }
 .ath-grad { background: linear-gradient(90deg, ${C.primary}, ${C.secondary}); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
@@ -343,8 +327,6 @@ function Styles() {
 .ath-avatars { display: flex; }
 .ath-avatar { width: 32px; height: 32px; border-radius: 50%; border: 2px solid ${C.bg}; margin-left: -10px; display: inline-block; }
 .ath-avatars .ath-avatar:first-child { margin-left: 0; }
-
-/* Right card */
 .ath-cardwrap { width: 100%; max-width: 420px; margin: 0 auto; }
 .ath-badge { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 600; color: ${C.primary}; border: 1px solid rgba(50,230,213,0.3); background: rgba(50,230,213,0.06); border-radius: 20px; padding: 5px 14px; margin: 0 auto 16px; }
 .ath-cardwrap { display: flex; flex-direction: column; align-items: center; }
@@ -354,6 +336,7 @@ function Styles() {
 .ath-card__sub { color: ${C.muted}; font-size: 14px; margin: 0 0 24px; }
 .ath-google { width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; padding: 12px 16px; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; transition: background .15s; font-family: inherit; }
 .ath-google:hover { background: rgba(255,255,255,0.1); }
+.ath-google:disabled { opacity: .6; cursor: not-allowed; }
 .ath-divider { display: flex; align-items: center; gap: 12px; margin: 20px 0; }
 .ath-divider::before, .ath-divider::after { content:''; flex: 1; height: 1px; background: rgba(255,255,255,0.1); }
 .ath-divider span { color: rgba(255,255,255,0.3); font-size: 11px; }
@@ -370,10 +353,7 @@ function Styles() {
 .ath-switch { text-align: center; color: rgba(255,255,255,0.35); font-size: 12.5px; margin-top: 22px; }
 .ath-perks { display: flex; align-items: center; justify-content: center; gap: 18px; margin-top: 20px; font-size: 11.5px; color: rgba(148,163,184,0.7); flex-wrap: wrap; }
 .ath-perk { display: flex; align-items: center; gap: 6px; }
-
 @keyframes ath-pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
-
-/* Responsive */
 @media (max-width: 880px) {
   .ath-body { grid-template-columns: 1fr; gap: 36px; padding: 36px 22px; }
   .ath-aside { display: none; }
