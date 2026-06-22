@@ -2,8 +2,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import {
   onAuthStateChanged,
-  signInWithRedirect,
-  getRedirectResult,
+  signInWithPopup,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
@@ -101,13 +100,6 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    getRedirectResult(auth).then(async (cred) => {
-      if (cred?.user) {
-        const profile = await syncUserProfile(cred.user)
-        setUserProfile(profile)
-      }
-    }).catch(() => {})
-
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (u) {
         const profile = await syncUserProfile(u)
@@ -123,7 +115,10 @@ export function AuthProvider({ children }) {
   }, [])
 
   const loginWithGoogle = async () => {
-    await signInWithRedirect(auth, googleProvider)
+    const cred = await signInWithPopup(auth, googleProvider)
+    const profile = await syncUserProfile(cred.user)
+    setUserProfile(profile)
+    return cred
   }
 
   const loginWithEmail = async (email, password) => {
