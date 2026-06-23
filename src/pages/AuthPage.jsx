@@ -65,22 +65,22 @@ export default function AuthPage() {
   }, [user, navigate])
 
   async function handleSubmit(e) {
-    e.preventDefault()
-    setError('')
-    setLoading(true)
-    try {
-      if (mode === 'login') {
-        await loginWithEmail(email, password)
-      } else {
-        await registerWithEmail(email, password, name)
-      }
-      navigate('/dashboard', { replace: true })
-    } catch (err) {
-      setError(err.message.replace('Firebase: ', '').replace(/\(auth.*\)\.?/, ''))
-    } finally {
-      setLoading(false)
+  e.preventDefault()
+  setError('')
+  setLoading(true)
+  try {
+    if (mode === 'login') {
+      await loginWithEmail(email, password)
+    } else {
+      await registerWithEmail(email, password, name)
     }
+  } catch (err) {
+    setError(err.message.replace('Firebase: ', '').replace(/\(auth.*\)\.?/, ''))
+    setLoading(false)
+    return
   }
+  navigate('/dashboard', { replace: true })
+}
 
   async function handleGoogle() {
   if (googleLoading.current) return
