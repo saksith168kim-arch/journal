@@ -60,9 +60,9 @@ export default function AuthPage() {
   const [focusField, setFocusField] = useState(null)
   const googleLoading = useRef(false)
 
-  useEffect(() => {
-    if (user) navigate('/dashboard', { replace: true })
-  }, [user, navigate])
+useEffect(() => {
+  if (!loading && user) navigate('/dashboard', { replace: true })
+}, [user, loading, navigate])
 
   async function handleSubmit(e) {
   e.preventDefault()
