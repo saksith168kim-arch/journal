@@ -114,13 +114,13 @@ export function AuthProvider({ children }) {
     return unsub
   }, [])
 
-  const loginWithGoogle = async () => {
-    const cred = await signInWithPopup(auth, googleProvider)
-    const profile = await syncUserProfile(cred.user)
-    setUserProfile(profile)
-    return cred
-  }
-
+  // AuthContext.jsx
+const loginWithGoogle = async () => {
+  const cred = await signInWithPopup(auth, googleProvider)
+  const profile = await syncUserProfile(cred.user)
+  setUserProfile(profile)
+  return cred
+}
   const loginWithEmail = async (email, password) => {
     const cred = await signInWithEmailAndPassword(auth, email, password)
     const profile = await syncUserProfile(cred.user)

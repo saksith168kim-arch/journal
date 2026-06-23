@@ -7,8 +7,10 @@ import {
 import { db } from '../lib/firebase'
 import { useAuth } from '../context/AuthContext'
 
+const FREE_TRADE_LIMIT = 10
+
 export function useTrades() {
-  const { user } = useAuth()
+  const { user, isPro, isAdmin } = useAuth()
   const [trades, setTrades] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -27,15 +29,22 @@ export function useTrades() {
     return unsub
   }, [user])
 
+  // Check if user can add more trades
+  const canAddTrade = isPro || isAdmin || trades.length < FREE_TRADE_LIMIT
+  const tradesRemaining = isPro || isAdmin ? null : Math.max(0, FREE_TRADE_LIMIT - trades.length)
+
   const addTrade = useCallback(async (trade) => {
     if (!user) return
+    if (!isPro && !isAdmin && trades.length >= FREE_TRADE_LIMIT) {
+      throw new Error('TRADE_LIMIT_REACHED')
+    }
     const { id: _ignored, ...rest } = trade
     await addDoc(collection(db, 'users', user.uid, 'trades'), {
       ...rest,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     })
-  }, [user])
+  }, [user, isPro, isAdmin, trades.length])
 
   const updateTrade = useCallback(async (id, trade) => {
     if (!user) return
@@ -53,6 +62,9 @@ export function useTrades() {
 
   const importTrades = useCallback(async (tradesList) => {
     if (!user) return
+    if (!isPro && !isAdmin && trades.length + tradesList.length > FREE_TRADE_LIMIT) {
+      throw new Error('TRADE_LIMIT_REACHED')
+    }
     await Promise.all(
       tradesList.map((t) => {
         const { id: _ignored, ...rest } = t
@@ -63,7 +75,16 @@ export function useTrades() {
         })
       })
     )
-  }, [user])
+  }, [user, isPro, isAdmin, trades.length])
 
-  return { trades, loading, addTrade, updateTrade, deleteTrade, importTrades }
+  return {
+    trades,
+    loading,
+    addTrade,
+    updateTrade,
+    deleteTrade,
+    importTrades,
+    canAddTrade,
+    tradesRemaining,
+  }
 }

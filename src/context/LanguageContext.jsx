@@ -18,7 +18,7 @@ const TRANSLATIONS = {
     import_csv: 'Import CSV',
     importing: 'Importing…',
     export_csv: 'Export CSV',
-    new_trade: '+ New Trade',
+    new_trade: 'New Trade',
     no_trades: 'No trades found. Start logging your first trade.',
     log_first_trade: '+ Log First Trade',
     // Table headers
@@ -101,7 +101,7 @@ const TRANSLATIONS = {
     import_csv: 'នាំចូល CSV',
     importing: 'កំពុងនាំចូល…',
     export_csv: 'នាំចេញ CSV',
-    new_trade: '+ ពាណិជ្ជកម្មថ្មី',
+    new_trade: 'ពាណិជ្ជកម្មថ្មី',
     no_trades: 'រកមិនឃើញពាណិជ្ជកម្ម។ ចាប់ផ្តើមកត់ត្រាពាណិជ្ជកម្មដំបូងរបស់អ្នក។',
     log_first_trade: '+ កត់ត្រាដំបូង',
     // Table headers
@@ -173,7 +173,10 @@ const TRANSLATIONS = {
 const LanguageContext = createContext(null)
 
 export function LanguageProvider({ children }) {
-  const [lang, setLang] = useState(() => localStorage.getItem('ag_lang') || 'en')
+  const [lang, setLang] = useState(() => {
+    const saved = localStorage.getItem('ag_lang')
+    return saved && TRANSLATIONS[saved] ? saved : 'en'
+  })
 
   function switchLang(next) {
     setLang(next)

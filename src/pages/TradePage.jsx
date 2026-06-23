@@ -30,7 +30,7 @@ const card = {
 export default function TradePage() {
   const { id } = useParams()
   const isEdit = Boolean(id)
-  const { trades, addTrade, updateTrade } = useTrades()
+  const { trades, addTrade, updateTrade, canAddTrade, tradesRemaining } = useTrades()
   const navigate = useNavigate()
   const { t } = useLang()
   const [form, setForm] = useState(emptyForm())
@@ -95,9 +95,13 @@ export default function TradePage() {
         },
       }
       if (isEdit) { await updateTrade(id, trade) } else { await addTrade(trade) }
-      navigate('/')
+      navigate('/dashboard')
     } catch (err) {
-      alert('Save failed: ' + err.message)
+      if (err.message === 'TRADE_LIMIT_REACHED') {
+        alert('⚠️ You have reached the 10 trade limit on the free plan. Upgrade to Pro for unlimited trades!')
+      } else {
+        alert('Save failed: ' + err.message)
+      }
     } finally {
       setSaving(false)
     }

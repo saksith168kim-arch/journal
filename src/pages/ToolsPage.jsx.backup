@@ -1,0 +1,997 @@
+function AIChartAnalyzer() {
+    const fileInputRef = useRef(null)
+
+    const [market, setMarket] = useState('FOREX')
+    const [imageData, setImageData] = useState(null)
+    const [imageDataUrl, setImageDataUrl] = useState(null)
+    const [imageMediaType, setImageMediaType] = useState('image/jpeg')
+    const [loading, setLoading] = useState(false)
+    const [loadingStep, setLoadingStep] = useState(0)
+    const [result, setResult] = useState(null)
+    const [error, setError] = useState(null)
+    const [dragOver, setDragOver] = useState(false)
+    const [plan, setPlan] = useState('free')
+    const [freeCount, setFreeCount] = useState(0)
+    const [history, setHistory] = useState([])
+    const [uid, setUid] = useState(null)
+    const [showPaywall, setShowPaywall] = useState(false)
+    const [showCheckout, setShowCheckout] = useState(false)
+    const [showSuccess, setShowSuccess] = useState(false)
+    const [selectedPlan, setSelectedPlan] = useState(null)
+
+    // ── NEW: ABA + Telegram states ──
+    const [checkoutStep, setCheckoutStep] = useState('qr')
+    const [buyerTelegram, setBuyerTelegram] = useState('')
+    const [notifySent, setNotifySent] = useState(false)
+    const [paymentScreenshot, setPaymentScreenshot] = useState(null)
+
+    // ── Load per-user AI usage from Firestore ──
+    useEffect(() => {
+        let unsubAuth = null
+        import('firebase/auth').then(({ getAuth, onAuthStateChanged }) => {
+            const auth = getAuth()
+            unsubAuth = onAuthStateChanged(auth, async (user) => {
+                if (!user) return
+                setUid(user.uid)
+                try {
+                    const { getFirestore, doc, getDoc } = await import('firebase/firestore')
+                    const db = getFirestore()
+                    const ref = doc(db, 'users', user.uid, 'aiUsage', 'data')
+                    const snap = await getDoc(ref)
+                    if (snap.exists()) {
+                        const d = snap.data()
+                        setPlan(d.plan || 'free')
+                        setFreeCount(d.freeCount || 0)
+                        setHistory(d.history || [])
+                    }
+                } catch (e) { console.error('Load AI usage failed:', e) }
+            })
+        })
+        return () => { if (unsubAuth) unsubAuth() }
+    }, [])
+
+    // ── Save per-user AI usage to Firestore ──
+    const saveUsage = async (newCount, newPlan, newHistory) => {
+        if (!uid) return
+        try {
+            const { getFirestore, doc, setDoc } = await import('firebase/firestore')
+            const db = getFirestore()
+            await setDoc(
+                doc(db, 'users', uid, 'aiUsage', 'data'),
+                { plan: newPlan, freeCount: newCount, history: newHistory },
+                { merge: true }
+            )
+        } catch (e) { console.error('Save AI usage failed:', e) }
+    }
+
+    // ── NEW: Send Telegram alert (fill in BOT_TOKEN + ADMIN_CHAT_ID later) ──
+    const sendTelegramAlert = async () => {
+        const BOT_TOKEN = "7224803885:AAH66bKhDqgJAYZwtPN3C1HW-7grY_GTX2s";
+        const ADMIN_CHAT_ID = "473035185";
+
+        const planLabel = selectedPlan === 'yearly'
+            ? 'Yearly Pro ($150/yr)'
+            : 'Monthly Pro ($25/mo)';
+
+        const time = new Date().toLocaleString('en-GB', {
+            timeZone: 'Asia/Phnom_Penh'
+        });
+
+        const text = [
+            '🔔 *New Payment Notification*',
+            '',
+            `📦 Plan: ${planLabel}`,
+            `🕐 Time: ${time}`,
+            '',
+            '✅ Please verify ABA payment then activate their account.',
+        ].join('\n');
+
+        const API = `https://api.telegram.org/bot${BOT_TOKEN}`;
+
+        try {
+            // 1️⃣  Always send the text message first
+            await fetch(`${API}/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    chat_id: ADMIN_CHAT_ID,
+                    text,
+                    parse_mode: 'Markdown',
+                }),
+            });
+
+            // 2️⃣  If a screenshot was uploaded, forward it as a photo
+            if (paymentScreenshot) {
+                // paymentScreenshot is a base64 data-URL — convert to a Blob
+                const res = await fetch(paymentScreenshot);
+                const blob = await res.blob();
+
+                const form = new FormData();
+                form.append('chat_id', ADMIN_CHAT_ID);
+                form.append('photo', blob, 'payment.jpg');
+                form.append('caption', `📸 Payment receipt — ${planLabel}`);
+
+                await fetch(`${API}/sendPhoto`, {
+                    method: 'POST',
+                    body: form,
+                    // ⚠️ Do NOT set Content-Type here — browser sets multipart boundary
+                });
+            }
+        } catch (e) {
+            console.error('Telegram alert failed:', e);
+        }
+
+        setNotifySent(true);
+    };
+    const sendAnalysisToTelegram = async (analysis, market, thumb) => {
+        const BOT_TOKEN = "7224803885:AAH66bKhDqgJAYZwtPN3C1HW-7grY_GTX2s"
+        const ADMIN_CHAT_ID = "473035185"
+        const API = `https://api.telegram.org/bot${BOT_TOKEN}`
+
+        const signalEmoji = analysis.signal === 'BUY' ? '🟢' : analysis.signal === 'SELL' ? '🔴' : '🟡'
+        const time = new Date().toLocaleString('en-GB', { timeZone: 'Asia/Phnom_Penh' })
+
+        const text = [
+            `${signalEmoji} *AI Chart Analysis Result*`,
+            ``,
+            `📊 Market: ${market}`,
+            `📈 Signal: *${analysis.signal}*`,
+            `⭐ Confidence: ${analysis.confidence}%`,
+            ``,
+            `🕯 Pattern: ${analysis.pattern || '—'}`,
+            `〰 Trend: ${analysis.trend || '—'}`,
+            `⏱ Timeframe: ${analysis.timeframe || '—'}`,
+            ``,
+            `🎯 Entry: \`${analysis.entry || '—'}\``,
+            `🛑 Stop Loss: \`${analysis.stopLoss || '—'}\``,
+            `✅ TP1: \`${analysis.tp1 || '—'}\``,
+            `✅ TP2: \`${analysis.tp2 || '—'}\``,
+            `✅ TP3: \`${analysis.tp3 || '—'}\``,
+            `⚡ R:R: ${analysis.riskReward || '—'}`,
+            ``,
+            `📝 ${analysis.summary || ''}`,
+            ``,
+            `🕐 ${time}`,
+        ].join('\n')
+
+        try {
+            await fetch(`${API}/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    chat_id: ADMIN_CHAT_ID,
+                    text,
+                    parse_mode: 'Markdown',
+                }),
+            })
+
+            if (thumb) {
+                const res = await fetch(thumb)
+                const blob = await res.blob()
+                const form = new FormData()
+                form.append('chat_id', ADMIN_CHAT_ID)
+                form.append('photo', blob, 'chart.jpg')
+                form.append('caption', `${signalEmoji} ${market} ${analysis.signal} — ${analysis.pattern || 'Chart'}`)
+                await fetch(`${API}/sendPhoto`, { method: 'POST', body: form })
+            }
+        } catch (e) {
+            console.error('Telegram result alert failed:', e)
+        }
+    }
+    const loadFile = (file) => {
+        if (!file || !file.type.startsWith('image/')) return
+        const reader = new FileReader()
+        reader.onload = e => {
+            setImageDataUrl(e.target.result)
+            setImageData(e.target.result.split(',')[1])
+            setImageMediaType(file.type === 'image/jpg' ? 'image/jpeg' : (file.type || 'image/png'))
+            setResult(null)
+            setError(null)
+        }
+        reader.readAsDataURL(file)
+    }
+
+    const removeImage = () => {
+        setImageData(null); setImageDataUrl(null)
+        setResult(null); setError(null)
+        if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+
+    const startAnalysis = async () => {
+        if (!imageData) return
+        if (plan === 'free' && freeCount >= 5) {
+            setShowPaywall(true)
+            return
+        }
+
+        setLoading(true); setResult(null); setError(null); setLoadingStep(0)
+
+        const stepTimer = setInterval(() => {
+            setLoadingStep(s => {
+                if (s < AI_LOADING_STEPS.length - 1) return s + 1
+                clearInterval(stepTimer)
+                return s
+            })
+        }, 900)
+
+        const mediaType = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(imageMediaType)
+            ? imageMediaType : 'image/png'
+
+        const prompt = `You are an expert technical analyst. Analyze this ${market} trading chart and provide a detailed trading signal.
+
+Respond ONLY in valid JSON with this exact structure — no markdown, no extra text:
+{
+  "signal": "BUY" or "SELL" or "NEUTRAL",
+  "confidence": number 1-100,
+  "entry": "price number only e.g. 1.08500",
+  "stopLoss": "price number only e.g. 1.08200",
+  "tp1": "price number only e.g. 1.09000",
+  "tp2": "price number only e.g. 1.09500",
+  "tp3": "price number only e.g. 1.10000",
+  "riskReward": "ratio like 1:2.5",
+  "timeframe": "detected timeframe e.g. 4H, 1D",
+  "pattern": "detected chart pattern name",
+  "trend": "UPTREND" or "DOWNTREND" or "SIDEWAYS",
+  "indicators": [
+    {"name": "indicator name", "reading": "value or reading", "sentiment": "BULLISH" or "BEARISH" or "NEUTRAL"}
+  ],
+  "summary": "2-3 sentence analysis explanation",
+  "keyLevels": "key support and resistance levels",
+  "volumeAnalysis": "brief volume analysis"
+}`
+
+        try {
+            const response = await fetch('/api/ai-review', {
+                method: 'POST',
+                headers: {
+                    'content-type': 'application/json',
+                    'x-market': market
+                },
+                body: JSON.stringify({
+                    model: 'claude-sonnet-4-5',
+                    max_tokens: 1000,
+                    messages: [{
+                        role: 'user',
+                        content: [
+                            { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageData } },
+                            { type: 'text', text: prompt }
+                        ]
+                    }]
+                })
+            })
+
+            clearInterval(stepTimer)
+
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}))
+                throw new Error(err.error?.message || `API error ${response.status}`)
+            }
+
+            const data = await response.json()
+            let rawText = data.content.map(b => b.text || '').join('').trim()
+            rawText = rawText.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim()
+
+            let analysis
+            try { analysis = JSON.parse(rawText) }
+            catch { const m = rawText.match(/\{[\s\S]*\}/); if (m) analysis = JSON.parse(m[0]); else throw new Error('Could not parse AI response') }
+
+            const newCount = plan === 'free' ? freeCount + 1 : freeCount
+            if (plan === 'free') setFreeCount(newCount)
+
+            const entry = {
+                id: Date.now(), market, signal: analysis.signal, pattern: analysis.pattern,
+                confidence: analysis.confidence, thumb: imageDataUrl,
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                date: new Date().toLocaleDateString(), analysis
+            }
+            const newHistory = [entry, ...history].slice(0, 20)
+            setHistory(newHistory)
+            await saveUsage(newCount, plan, newHistory)
+
+            setResult(analysis)
+            await sendAnalysisToTelegram(analysis, market, imageDataUrl)
+        } catch (err) {
+            clearInterval(stepTimer)
+            setError(err.message)
+        } finally {
+            setLoading(false)
+            setLoadingStep(0)
+        }
+    }
+
+    const activatePlan = (p) => {
+        setPlan(p)
+        saveUsage(freeCount, p, history)
+        setShowCheckout(false)
+        setShowSuccess(true)
+    }
+
+    const signalColor = result
+        ? result.signal === 'BUY' ? '#34d399' : result.signal === 'SELL' ? '#f87171' : '#fbbf24'
+        : null
+
+    const rrNum = result?.riskReward
+        ? (() => { const p = result.riskReward.split(':'); return p.length === 2 ? parseFloat(p[1]) : 0 })() : 0
+
+    const isPaid = plan !== 'free'
+
+    return (
+        <div>
+            {/* ── Header ── */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+                <div>
+                    <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-pri)', margin: 0, letterSpacing: '-0.02em' }}>AI Chart Analyzer</h2>
+                    <p style={{ fontSize: 12, color: 'var(--text-mut)', margin: '4px 0 0' }}>Upload any chart · Get instant BUY / SELL signal · Entry, SL & TP</p>
+                </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
+
+                {/* ── LEFT column: controls ── */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+                    {/* Market selector */}
+                    <div style={card()}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-sec)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>Market Type</div>
+                        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                            {AI_MARKETS.map(m => (
+                                <button key={m} onClick={() => setMarket(m)} style={{
+                                    padding: '6px 14px', borderRadius: 8, fontSize: 11, fontWeight: 700,
+                                    border: `1.5px solid ${market === m ? 'var(--acc-main)' : 'var(--border)'}`,
+                                    background: market === m ? 'var(--acc-subtle)' : 'transparent',
+                                    color: market === m ? 'var(--acc-main)' : 'var(--text-sec)',
+                                    cursor: 'pointer', fontFamily: 'var(--font-ui)', transition: 'all 0.15s', letterSpacing: '0.05em',
+                                }}>{m}</button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Free usage bar */}
+                    {!isPaid && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', background: freeCount >= 5 ? '#f8717112' : 'var(--bg-card)', border: `1px solid ${freeCount >= 5 ? '#f8717140' : 'var(--border)'}`, borderRadius: 10, flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: freeCount >= 5 ? '#f87171' : 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.07em', ...mono }}>Free</span>
+                            <div style={{ display: 'flex', gap: 5 }}>
+                                {[0, 1, 2, 3, 4].map(i => (
+                                    <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: i < freeCount ? (freeCount >= 5 ? '#f87171' : 'var(--acc-main)') : 'var(--border)', border: `1px solid ${i < freeCount ? (freeCount >= 5 ? '#f87171' : 'var(--acc-main)') : 'var(--border)'}`, boxShadow: i < freeCount ? `0 0 6px ${freeCount >= 5 ? '#f87171' : 'var(--acc-main)'}` : 'none' }} />
+                                ))}
+                            </div>
+                            <span style={{ fontSize: 10, color: freeCount >= 5 ? '#f87171' : 'var(--text-sec)', fontWeight: freeCount >= 5 ? 700 : 400, ...mono }}>{freeCount} / 5 used</span>
+                            <button onClick={() => setShowPaywall(true)} style={{ marginLeft: 'auto', background: freeCount >= 5 ? 'var(--grad-accent)' : 'none', border: 'none', color: freeCount >= 5 ? '#fff' : 'var(--acc-main)', cursor: 'pointer', fontSize: 11, fontWeight: freeCount >= 5 ? 800 : 400, textDecoration: freeCount >= 5 ? 'none' : 'underline', fontFamily: 'var(--font-ui)', padding: freeCount >= 5 ? '5px 12px' : '0', borderRadius: freeCount >= 5 ? 7 : 0 }}>
+                                {freeCount >= 5 ? '🔒 Upgrade to Continue →' : 'Upgrade for unlimited →'}
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Upgrade wall — shown when free limit reached */}
+                    {!isPaid && freeCount >= 5 ? (
+                        <div onClick={() => { setSelectedPlan('monthly'); setShowCheckout(true); }} style={{ border: '2px dashed var(--acc-main)', borderRadius: 14, background: 'var(--acc-subtle)', padding: '36px 24px', textAlign: 'center', cursor: 'pointer', transition: 'all 0.2s' }}>
+                            <div style={{ fontSize: 36, marginBottom: 10 }}>🔒</div>
+                            <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-pri)', marginBottom: 6 }}>Free limit reached</div>
+                            <div style={{ fontSize: 12, color: 'var(--text-sec)', lineHeight: 1.6, marginBottom: 16 }}>You've used all 5 free analyses.<br />Upgrade to get unlimited access.</div>
+                            <div style={{ display: 'inline-block', background: 'var(--grad-accent)', color: '#fff', fontSize: 13, fontWeight: 800, padding: '10px 24px', borderRadius: 9, letterSpacing: '0.04em' }}>Upgrade Now →</div>
+                        </div>
+                    ) : !imageDataUrl ? (
+                        <div
+                            onClick={() => fileInputRef.current?.click()}
+                            onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+                            onDragLeave={() => setDragOver(false)}
+                            onDrop={e => { e.preventDefault(); setDragOver(false); loadFile(e.dataTransfer.files[0]) }}
+                            style={{
+                                border: `2px dashed ${dragOver ? 'var(--acc-main)' : 'var(--border)'}`,
+                                borderRadius: 14, background: dragOver ? 'var(--acc-subtle)' : 'var(--bg-card)',
+                                padding: '40px 24px', textAlign: 'center', cursor: 'pointer', transition: 'all 0.2s',
+                            }}
+                        >
+                            <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }}
+                                onChange={e => e.target.files[0] && loadFile(e.target.files[0])} />
+                            <div style={{ fontSize: 40, marginBottom: 10 }}>📈</div>
+                            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-pri)', marginBottom: 5 }}>Drop your chart here</div>
+                            <div style={{ fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.6, ...mono }}>
+                                PNG · JPG · WEBP · Any timeframe<br />TradingView · MT4/5 · Binance · Thinkorswim
+                            </div>
+                        </div>
+                    ) : (
+                        <div style={{ position: 'relative', borderRadius: 14, overflow: 'hidden', border: '1px solid var(--border)', background: 'var(--bg-card)' }}>
+                            <img src={imageDataUrl} alt="Chart" style={{ width: '100%', maxHeight: 260, objectFit: 'contain', display: 'block' }} />
+                            <div style={{ position: 'absolute', top: 10, left: 10, background: 'var(--acc-main)', color: '#fff', fontSize: 9, fontWeight: 800, padding: '3px 8px', borderRadius: 5, letterSpacing: '0.08em', ...mono }}>{market}</div>
+                            <button onClick={removeImage} style={{ position: 'absolute', top: 10, right: 10, width: 28, height: 28, borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-sec)', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+                            {loading && (
+                                <div style={{ position: 'absolute', inset: 0, background: 'rgba(8,12,20,0.85)', backdropFilter: 'blur(4px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+                                    <div style={{ width: 36, height: 36, border: '2px solid var(--border)', borderTopColor: 'var(--acc-main)', borderRadius: '50%', animation: 'aiSpin 1s linear infinite' }} />
+                                    <div style={{ fontSize: 10, color: 'var(--text-sec)', ...mono, letterSpacing: '0.06em' }}>ANALYZING...</div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Loading steps */}
+                    {loading && (
+                        <div style={card({ background: 'var(--bg-card)', padding: 16 })}>
+                            {AI_LOADING_STEPS.map((step, i) => (
+                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 0', fontSize: 11 }}>
+                                    <div style={{
+                                        width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
+                                        background: i < loadingStep ? '#34d39920' : i === loadingStep ? 'var(--acc-subtle)' : 'var(--bg-hover)',
+                                        border: `1.5px solid ${i < loadingStep ? '#34d399' : i === loadingStep ? 'var(--acc-main)' : 'var(--border)'}`,
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: i < loadingStep ? '#34d399' : 'var(--acc-main)',
+                                    }}>{i < loadingStep ? '✓' : i === loadingStep ? '●' : ''}</div>
+                                    <span style={{ color: i < loadingStep ? '#34d399' : i === loadingStep ? 'var(--text-pri)' : 'var(--text-dim)', fontWeight: i === loadingStep ? 700 : 400 }}>{step}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Analyze button */}
+                    {(isPaid || freeCount < 5) && (
+                        <button
+                            onClick={startAnalysis}
+                            disabled={!imageData || loading}
+                            style={{
+                                width: '100%', padding: '14px', borderRadius: 11, border: 'none',
+                                background: imageData && !loading ? 'var(--grad-accent)' : 'var(--bg-card)',
+                                color: imageData && !loading ? '#fff' : 'var(--text-dim)',
+                                cursor: imageData && !loading ? 'pointer' : 'not-allowed',
+                                fontWeight: 800, fontSize: 13, fontFamily: 'var(--font-ui)',
+                                letterSpacing: '0.04em', transition: 'all 0.2s', opacity: loading ? 0.7 : 1,
+                            }}
+                        >
+                            {loading ? '⏳ Analyzing...' : '🔍 Analyze Chart — BUY or SELL'}
+                        </button>
+                    )}
+
+                    {/* Disclaimer */}
+                    <div style={{ fontSize: 10, color: 'var(--text-dim)', lineHeight: 1.6, padding: '10px 14px', background: 'var(--bg-card)', borderRadius: 10, border: '1px solid var(--border)', borderLeft: '3px solid #fbbf24' }}>
+                        ⚠️ AI analysis is for educational purposes only. Not financial advice. Always do your own research before trading.
+                    </div>
+                </div>
+
+                {/* ── RIGHT column: results ── */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+                    {/* Error */}
+                    {error && (
+                        <div style={{ background: '#f8717112', border: '1px solid #f8717140', borderRadius: 12, padding: '16px 18px' }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: '#f87171', marginBottom: 6 }}>⚠ Analysis Failed</div>
+                            <div style={{ fontSize: 11, color: 'var(--text-sec)', ...mono, lineHeight: 1.5 }}>{error}</div>
+                            {error.includes('401') && <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 6 }}>Check that your API key is valid and has sufficient credits.</div>}
+                        </div>
+                    )}
+
+                    {/* Empty state */}
+                    {!result && !error && !loading && (
+                        <div style={{ ...card(), textAlign: 'center', padding: '44px 24px', opacity: 0.55 }}>
+                            <div style={{ fontSize: 46, marginBottom: 12 }}>🤖</div>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-sec)', marginBottom: 6 }}>Ready to analyze</div>
+                            <div style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.7 }}>Upload a chart and click Analyze to get an AI-powered signal with entry, stop loss, and take profit levels.</div>
+                        </div>
+                    )}
+
+                    {/* Result */}
+                    {result && (() => {
+                        const rrColor = rrNum >= 2 ? '#34d399' : rrNum >= 1 ? '#fbbf24' : '#f87171'
+                        return (
+                            <>
+                                {/* ── SIGNAL HEADER ── */}
+                                <div style={{ ...card(), background: `${signalColor}0e`, border: `1.5px solid ${signalColor}40` }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+                                        <div>
+                                            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 4 }}>
+                                                {result.signal === 'BUY' ? '📈' : result.signal === 'SELL' ? '📉' : '➡️'} {result.signal === 'BUY' ? 'Buy' : result.signal === 'SELL' ? 'Sell' : 'Neutral'} Signal · {result.pattern || 'Chart Analysis'}
+                                            </div>
+                                            <div style={{ fontSize: 13, color: 'var(--text-sec)', lineHeight: 1.5 }}>{result.summary}</div>
+                                        </div>
+                                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+                                            <div style={{ background: `${signalColor}20`, border: `1.5px solid ${signalColor}60`, borderRadius: 8, padding: '6px 14px', fontSize: 13, fontWeight: 800, color: signalColor, ...mono }}>{result.signal}</div>
+                                            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, padding: '6px 14px', fontSize: 13, fontWeight: 700, color: 'var(--acc-main)', ...mono }}>★ {result.confidence}%</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* ── SIGNAL STRENGTH BAR ── */}
+                                <div style={card()}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                                        <div>
+                                            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-pri)' }}>Signal Strength</div>
+                                            <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 2 }}>Based on confidence score</div>
+                                        </div>
+                                        <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--acc-main)', ...mono }}>{result.confidence}%</div>
+                                    </div>
+                                    <div style={{ height: 8, background: 'var(--bg-hover)', borderRadius: 4, overflow: 'hidden' }}>
+                                        <div style={{ height: '100%', width: `${result.confidence}%`, background: result.confidence >= 70 ? '#34d399' : result.confidence >= 50 ? '#fbbf24' : '#f87171', borderRadius: 4, transition: 'width 1.2s ease' }} />
+                                    </div>
+                                </div>
+
+                                {/* ── PRICE LEVELS VISUALIZATION ── */}
+                                <div style={card()}>
+                                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>⊙ Price Levels Visualization</div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', borderRadius: 10, overflow: 'hidden', height: 64, border: '1px solid var(--border)' }}>
+                                        {/* SL */}
+                                        <div style={{ background: 'rgba(248,113,113,0.18)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 5, borderRight: '1px solid var(--border)', padding: '0 4px' }}>
+                                            <div style={{ fontSize: 10, fontWeight: 700, color: '#f87171', ...mono, textAlign: 'center', wordBreak: 'break-all', lineHeight: 1.2, maxWidth: '100%', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{result.stopLoss || '—'}</div>
+                                            <div style={{ background: '#f87171', color: '#fff', fontSize: 8, fontWeight: 800, padding: '1px 6px', borderRadius: 3, letterSpacing: '0.06em', flexShrink: 0 }}>SL</div>
+                                        </div>
+                                        {/* Entry */}
+                                        <div style={{ background: 'rgba(96,165,250,0.18)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 5, borderRight: '1px solid var(--border)', padding: '0 4px' }}>
+                                            <div style={{ fontSize: 10, fontWeight: 700, color: '#60a5fa', ...mono, textAlign: 'center', wordBreak: 'break-all', lineHeight: 1.2, maxWidth: '100%', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{result.entry || '—'}</div>
+                                            <div style={{ background: '#60a5fa', color: '#fff', fontSize: 8, fontWeight: 800, padding: '1px 6px', borderRadius: 3, letterSpacing: '0.06em', flexShrink: 0 }}>Entry</div>
+                                        </div>
+                                        {/* TP1 */}
+                                        <div onClick={!isPaid ? () => setShowPaywall(true) : undefined} style={{ background: 'rgba(52,211,153,0.12)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 5, borderRight: '1px solid var(--border)', padding: '0 4px', cursor: !isPaid ? 'pointer' : 'default' }}>
+                                            {isPaid ? (
+                                                <>
+                                                    <div style={{ fontSize: 10, fontWeight: 700, color: '#34d399', ...mono, textAlign: 'center', wordBreak: 'break-all', lineHeight: 1.2, maxWidth: '100%', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{result.tp1 || '—'}</div>
+                                                    <div style={{ background: '#34d399', color: '#000', fontSize: 8, fontWeight: 800, padding: '1px 6px', borderRadius: 3, letterSpacing: '0.06em', flexShrink: 0 }}>TP1</div>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <div style={{ fontSize: 14 }}>🔒</div>
+                                                    <div style={{ fontSize: 8, color: 'var(--acc-main)', fontWeight: 700 }}>Upgrade</div>
+                                                </>
+                                            )}
+                                        </div>
+                                        {/* TP2 */}
+                                        <div onClick={!isPaid ? () => setShowPaywall(true) : undefined} style={{ background: 'rgba(52,211,153,0.07)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '0 4px', cursor: !isPaid ? 'pointer' : 'default' }}>
+                                            {isPaid ? (
+                                                <>
+                                                    <div style={{ fontSize: 10, fontWeight: 700, color: '#34d399', ...mono, textAlign: 'center', wordBreak: 'break-all', lineHeight: 1.2, maxWidth: '100%', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{result.tp2 || '—'}</div>
+                                                    <div style={{ background: '#34d39980', color: '#fff', fontSize: 8, fontWeight: 800, padding: '1px 6px', borderRadius: 3, letterSpacing: '0.06em', flexShrink: 0 }}>TP2</div>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <div style={{ fontSize: 14 }}>🔒</div>
+                                                    <div style={{ fontSize: 8, color: 'var(--acc-main)', fontWeight: 700 }}>Upgrade</div>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* ── 4 METRIC CARDS ── */}
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                                    {/* Risk/Reward */}
+                                    <div style={{ background: 'var(--bg-card)', borderRadius: 12, padding: '14px 16px', border: '1px solid var(--border)' }}>
+                                        <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 6 }}>⚡ Risk / Reward</div>
+                                        <div style={{ fontSize: 20, fontWeight: 800, color: rrColor, ...mono }}>{result.riskReward || '—'}</div>
+                                        <div style={{ height: 3, background: 'var(--bg-hover)', borderRadius: 2, marginTop: 8, overflow: 'hidden' }}>
+                                            <div style={{ height: '100%', width: `${Math.min(100, rrNum / 4 * 100)}%`, background: rrColor, borderRadius: 2, transition: 'width 1s ease' }} />
+                                        </div>
+                                        {rrNum < 1.5 && <div style={{ fontSize: 9, color: '#fbbf24', marginTop: 5 }}>⚠ Check risk levels</div>}
+                                    </div>
+                                    {/* Trend */}
+                                    <div style={{ background: 'var(--bg-card)', borderRadius: 12, padding: '14px 16px', border: '1px solid var(--border)' }}>
+                                        <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 6 }}>〰 Trend</div>
+                                        <div style={{ fontSize: 14, fontWeight: 700, color: result.trend === 'UPTREND' ? '#34d399' : result.trend === 'DOWNTREND' ? '#f87171' : '#fbbf24' }}>{result.trend || '—'}</div>
+                                        <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 4 }}>Timeframe: {result.timeframe || '—'}</div>
+                                    </div>
+                                    {/* Pattern */}
+                                    <div style={{ background: 'var(--bg-card)', borderRadius: 12, padding: '14px 16px', border: '1px solid var(--border)' }}>
+                                        <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 6 }}>◎ Pattern</div>
+                                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-pri)', lineHeight: 1.4 }}>{result.pattern || '—'}</div>
+                                    </div>
+                                    {/* Confidence */}
+                                    <div style={{ background: 'var(--bg-card)', borderRadius: 12, padding: '14px 16px', border: '1px solid var(--border)' }}>
+                                        <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 6 }}>✦ Confidence</div>
+                                        <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--acc-main)', ...mono }}>{result.confidence}%</div>
+                                        <div style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 4 }}>{result.confidence >= 70 ? 'High confidence' : result.confidence >= 50 ? 'Moderate confidence' : 'Low confidence'}</div>
+                                    </div>
+                                </div>
+
+                                {/* ── INDICATORS ── */}
+                                {result.indicators?.length > 0 && (
+                                    <div style={card()}>
+                                        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Indicators</div>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                            {(isPaid ? result.indicators : result.indicators.slice(0, 2)).map((ind, i) => {
+                                                const c = ind.sentiment === 'BULLISH' ? '#34d399' : ind.sentiment === 'BEARISH' ? '#f87171' : '#fbbf24'
+                                                return <span key={i} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, background: `${c}12`, border: `1px solid ${c}30`, color: c, fontWeight: 600 }}>{ind.name}: {ind.reading}</span>
+                                            })}
+                                            {!isPaid && result.indicators.length > 2 && (
+                                                <button onClick={() => setShowPaywall(true)} style={{ fontSize: 10, padding: '4px 10px', borderRadius: 6, background: 'transparent', border: '1px dashed var(--border)', color: 'var(--acc-main)', cursor: 'pointer', fontFamily: 'var(--font-ui)' }}>🔒 +{result.indicators.length - 2} more → Upgrade</button>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* ── KEY LEVELS + VOLUME (paid) ── */}
+                                {isPaid && (result.keyLevels || result.volumeAnalysis) && (
+                                    <div style={card()}>
+                                        {result.keyLevels && <>
+                                            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>Key Levels</div>
+                                            <p style={{ fontSize: 12, color: 'var(--text-sec)', margin: '0 0 12px', lineHeight: 1.6 }}>{result.keyLevels}</p>
+                                        </>}
+                                        {result.volumeAnalysis && <>
+                                            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>Volume</div>
+                                            <p style={{ fontSize: 12, color: 'var(--text-sec)', margin: 0, lineHeight: 1.6 }}>{result.volumeAnalysis}</p>
+                                        </>}
+                                    </div>
+                                )}
+
+                                {/* ── TRADE OUTCOME ── */}
+                                <div style={{ ...card(), borderTop: '2px solid var(--border)' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+                                        <div>
+                                            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-pri)' }}>Trade Outcome</div>
+                                            <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 2 }}>How did this analysis perform?</div>
+                                        </div>
+                                        <div style={{ display: 'flex', gap: 6 }}>
+                                            {[['Won', '#34d399'], ['Lost', '#f87171'], ['Not Taken', 'var(--text-dim)']].map(([label, color]) => (
+                                                <button key={label} style={{ padding: '6px 14px', borderRadius: 8, border: `1.5px solid ${color}50`, background: `${color}15`, color: color, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-ui)', transition: 'all 0.15s' }}
+                                                    onMouseEnter={e => { e.currentTarget.style.background = `${color}30` }}
+                                                    onMouseLeave={e => { e.currentTarget.style.background = `${color}15` }}>
+                                                    {label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            </>
+                        )
+                    })()}
+
+                    {/* History */}
+                    {history.length > 0 && (
+                        <div style={card()}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-sec)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>Recent Analyses</div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                                {history.slice(0, 5).map(h => (
+                                    <div key={h.id} onClick={() => { setResult(h.analysis); setImageDataUrl(h.thumb); setMarket(h.market) }}
+                                        style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: 10, display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', transition: 'border-color 0.15s' }}
+                                        onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--border-hover)'}
+                                        onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
+                                        <img src={h.thumb} alt="" style={{ width: 48, height: 34, borderRadius: 5, objectFit: 'cover', background: 'var(--bg-hover)', flexShrink: 0 }} />
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div style={{ fontSize: 10, color: 'var(--text-dim)', ...mono }}>{h.market} · {h.pattern}</div>
+                                            <div style={{ fontSize: 12, fontWeight: 700, color: h.signal === 'BUY' ? '#34d399' : h.signal === 'SELL' ? '#f87171' : '#fbbf24' }}>{h.signal}</div>
+                                        </div>
+                                        <div style={{ textAlign: 'right', fontSize: 10, color: 'var(--text-dim)', ...mono, flexShrink: 0 }}>{h.time}<br />{h.date}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* ── PAYWALL MODAL ── */}
+            <AIModal show={showPaywall} onClose={() => setShowPaywall(false)}>
+                <div style={{ padding: '32px 28px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 44, marginBottom: 14 }}>🔒</div>
+                    <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-pri)', marginBottom: 8, letterSpacing: '-0.02em' }}>Unlock AI Chart Analysis</h2>
+                    <p style={{ fontSize: 13, color: 'var(--text-sec)', lineHeight: 1.7, marginBottom: 22 }}>Powered by <strong style={{ color: 'var(--acc-main)' }}>Falcon 🦅</strong> — unlimited analyses, full TP levels, indicator breakdown & key levels.</p>
+                    <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 22 }}>
+                        {[['✓', 'Unlimited analyses'], ['✓', 'Entry & Stop Loss'], ['✓', 'TP1 & TP2 Targets'], ['✓', 'Full indicators'], ['✓', 'Key S/R levels']].map(([icon, txt]) => (
+                            <span key={txt} style={{ fontSize: 11, color: 'var(--text-sec)', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 20, padding: '4px 11px', display: 'flex', gap: 5, alignItems: 'center' }}>
+                                <span style={{ color: '#34d399' }}>{icon}</span>{txt}
+                            </span>
+                        ))}
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 16 }}>
+                        {[
+                            { id: 'free', label: 'Free Trial', price: '$0', sub: '5 analyses · forever', highlight: false },
+                            { id: 'monthly', label: 'Monthly', price: '$25', sub: 'per month · cancel anytime', highlight: true },
+                            { id: 'yearly', label: 'Yearly', price: '$12.50', sub: '/mo · $150/yr · save 50%', highlight: false, badge: '💰 SAVE 50%' },
+                        ].map(p => (
+                            <div key={p.id} onClick={() => {
+                                if (p.id === 'free') {
+                                    setShowPaywall(false)
+                                } else {
+                                    setSelectedPlan(p.id)
+                                    setShowPaywall(false)
+                                    setShowCheckout(true)
+                                    window.open(
+                                        p.id === 'yearly'
+                                            ? 'https://link.payway.com.kh/ABAPAYnS442225A'
+                                            : 'https://link.payway.com.kh/ABAPAYck442224o',
+                                        '_blank',
+                                        'noopener,noreferrer'
+                                    )
+                                }
+                            }}
+                                style={{ background: p.highlight ? 'var(--acc-subtle)' : 'var(--bg-card)', border: `1.5px solid ${p.highlight ? 'var(--acc-main)' : 'var(--border)'}`, borderRadius: 12, padding: '16px 12px', textAlign: 'center', cursor: 'pointer', position: 'relative', transition: 'all 0.15s' }}>
+                                {p.badge && <div style={{ position: 'absolute', top: -10, left: '50%', transform: 'translateX(-50%)', background: '#34d399', color: '#000', fontSize: 8, fontWeight: 800, padding: '2px 8px', borderRadius: 10, whiteSpace: 'nowrap' }}>{p.badge}</div>}
+                                <div style={{ fontSize: 10, fontWeight: 800, color: p.highlight ? 'var(--acc-main)' : 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>{p.label}</div>
+                                <div style={{ fontSize: 28, fontWeight: 900, color: 'var(--text-pri)', lineHeight: 1, marginBottom: 4 }}>{p.price}</div>
+                                <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 12 }}>{p.sub}</div>
+                                <div style={{ padding: '7px', borderRadius: 7, background: p.highlight ? 'var(--grad-accent)' : 'var(--bg-hover)', color: p.highlight ? '#fff' : 'var(--text-sec)', fontSize: 11, fontWeight: 700 }}>{p.id === 'free' ? 'Stay Free' : 'Subscribe'}</div>
+                            </div>
+                        ))}
+                    </div>
+                    <div style={{ fontSize: 10, color: 'var(--text-dim)', ...mono }}>🔒 Secure checkout via ABA · Cancel anytime</div>
+                </div>
+            </AIModal>
+            {/* ── CHECKOUT MODAL — ABA QR + Telegram ── */}
+            <AIModal
+                show={showCheckout}
+                onClose={() => {
+                    setShowCheckout(false)
+                    setCheckoutStep('qr')
+                    setBuyerTelegram('')
+                    setNotifySent(false)
+                }}
+                maxWidth={460}
+            >
+                <div style={{ padding: '28px 26px' }}>
+
+                    {/* Header */}
+                    <div style={{ marginBottom: 20 }}>
+                        <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--text-pri)' }}>
+                            Subscribe — {selectedPlan === 'yearly' ? 'Yearly Pro' : 'Monthly Pro'}
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--text-dim)', ...mono }}>
+                            AI Chart Analyzer · Pay via ABA
+                        </div>
+                    </div>
+
+                    {/* Plan summary */}
+                    <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px', marginBottom: 22 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, paddingBottom: 10, marginBottom: 10, borderBottom: '1px solid var(--border)' }}>
+                            <span style={{ color: 'var(--text-sec)' }}>Plan</span>
+                            <span style={{ fontWeight: 600 }}>{selectedPlan === 'yearly' ? 'Yearly Pro' : 'Monthly Pro'}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 700 }}>
+                            <span>Total</span>
+                            <span style={{ color: 'var(--acc-main)', ...mono }}>
+                                {selectedPlan === 'yearly' ? '$150.00 / year' : '$25.00 / month'}
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* ── STEP 1: QR + Telegram ── */}
+                    {checkoutStep === 'qr' && (
+                        <>
+                            {/* Step dots */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 20 }}>
+                                {['Scan & Pay', 'Confirm'].map((s, i) => (
+                                    <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 6, flex: i < 1 ? 1 : 'none' }}>
+                                        <div style={{
+                                            width: 22, height: 22, borderRadius: '50%', fontSize: 10, fontWeight: 800, flexShrink: 0,
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            background: i === 0 ? 'var(--acc-main)' : 'var(--bg-card)',
+                                            color: i === 0 ? '#fff' : 'var(--text-dim)',
+                                            border: `2px solid ${i === 0 ? 'var(--acc-main)' : 'var(--border)'}`,
+                                        }}>{i + 1}</div>
+                                        <span style={{ fontSize: 11, fontWeight: i === 0 ? 700 : 400, color: i === 0 ? 'var(--text-pri)' : 'var(--text-dim)' }}>{s}</span>
+                                        {i < 1 && <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />}
+                                    </div>
+                                ))}
+                            </div>
+
+                            ABA PayWay QR
+                            <div style={{ textAlign: 'center', marginBottom: 18 }}>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>
+                                    Pay via ABA PayWay
+                                </div>
+
+                                {/* Hero: open PayWay link */}
+
+
+                                <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 12, lineHeight: 1.6 }}>
+                                    The QR code & amount are pre-loaded.<br />Scan with ABA Mobile or any KHQR app.
+                                </div>
+                            </div>
+
+                            {/* Amount reminder */}
+                            <div style={{
+                                background: '#fbbf2410', border: '1px solid #fbbf2430',
+                                borderLeft: '3px solid #fbbf24', borderRadius: 9,
+                                padding: '10px 14px', marginBottom: 18,
+                                fontSize: 12, color: '#fbbf24', lineHeight: 1.5,
+                            }}>
+                                💡 Amount pre-filled: <strong>{selectedPlan === 'yearly' ? '$150.00' : '$25.00'}</strong>. Just scan and confirm in your ABA app.
+                            </div>
+
+
+                            {/* Next button */}
+                            {/* Divider */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, marginTop: 4 }}>
+                                <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+                                <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>then upload your receipt below</span>
+                                <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+                            </div>
+
+                            {/* Screenshot upload */}
+                            <div style={{ marginBottom: 16 }}>
+                                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>
+                                    📸 Upload your payment screenshot
+                                </div>
+                                <label style={{
+                                    display: 'block',
+                                    border: `2px dashed ${paymentScreenshot ? 'var(--acc-main)' : 'var(--border)'}`,
+                                    borderRadius: 12,
+                                    padding: paymentScreenshot ? '10px' : '36px 20px',
+                                    textAlign: 'center',
+                                    cursor: 'pointer',
+                                    background: paymentScreenshot ? 'var(--acc-subtle)' : 'var(--bg-card)',
+                                    transition: 'all 0.2s',
+                                }}>
+                                    <input
+                                        type="file" accept="image/*" style={{ display: 'none' }}
+                                        onChange={e => {
+                                            const file = e.target.files[0]
+                                            if (!file) return
+                                            const reader = new FileReader()
+                                            reader.onload = ev => setPaymentScreenshot(ev.target.result)
+                                            reader.readAsDataURL(file)
+                                        }}
+                                    />
+                                    {paymentScreenshot ? (
+                                        <img src={paymentScreenshot} alt="Payment proof"
+                                            style={{ width: '100%', maxHeight: 200, objectFit: 'contain', borderRadius: 8, display: 'block' }} />
+                                    ) : (
+                                        <>
+                                            <div style={{ fontSize: 36, marginBottom: 10 }}>📷</div>
+                                            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-pri)', marginBottom: 5 }}>Tap to upload your ABA receipt</div>
+                                            <div style={{ fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.6 }}>
+                                                After paying, screenshot your confirmation<br />PNG · JPG · WEBP
+                                            </div>
+                                        </>
+                                    )}
+                                </label>
+                                {paymentScreenshot && (
+                                    <button onClick={() => setPaymentScreenshot(null)} style={{
+                                        marginTop: 8, fontSize: 11, color: '#f87171', background: 'none',
+                                        border: 'none', cursor: 'pointer', fontFamily: 'var(--font-ui)',
+                                    }}>✕ Remove & re-upload</button>
+                                )}
+                            </div>
+
+                            {/* Next button */}
+                            <button
+                                onClick={() => { if (paymentScreenshot) setCheckoutStep('confirm') }}
+                                disabled={!paymentScreenshot}
+                                style={{
+                                    width: '100%', padding: '13px', borderRadius: 9, border: 'none',
+                                    background: paymentScreenshot ? 'var(--grad-accent)' : 'var(--bg-card)',
+                                    color: paymentScreenshot ? '#fff' : 'var(--text-dim)',
+                                    cursor: paymentScreenshot ? 'pointer' : 'not-allowed',
+                                    fontWeight: 800, fontSize: 13, fontFamily: 'var(--font-ui)',
+                                    letterSpacing: '0.04em', transition: 'all 0.2s',
+                                }}
+                            >
+                                {paymentScreenshot ? 'Next — Confirm →' : '⬆ Upload screenshot to continue'}
+                            </button>
+                        </>
+                    )}
+
+                    {/* ── STEP 2: CONFIRM ── */}
+                    {checkoutStep === 'confirm' && (
+                        <>
+                            {/* Step dots */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 22 }}>
+                                {['Scan & Pay', 'Confirm'].map((s, i) => (
+                                    <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 6, flex: i < 1 ? 1 : 'none' }}>
+                                        <div style={{
+                                            width: 22, height: 22, borderRadius: '50%', fontSize: 10, fontWeight: 800, flexShrink: 0,
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            background: i === 0 ? '#34d399' : 'var(--acc-main)',
+                                            color: '#fff',
+                                            border: `2px solid ${i === 0 ? '#34d399' : 'var(--acc-main)'}`,
+                                        }}>{i === 0 ? '✓' : '2'}</div>
+                                        <span style={{ fontSize: 11, fontWeight: i === 1 ? 700 : 400, color: i === 1 ? 'var(--text-pri)' : 'var(--text-dim)' }}>{s}</span>
+                                        {i < 1 && <div style={{ flex: 1, height: 1, background: '#34d399' }} />}
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Summary */}
+                            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: '16px', marginBottom: 18 }}>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>
+                                    Payment Summary
+                                </div>
+                                {[
+                                    ['Plan', selectedPlan === 'yearly' ? 'Yearly Pro' : 'Monthly Pro'],
+                                    ['Amount', selectedPlan === 'yearly' ? '$150.00' : '$25.00'],
+                                ].map(([k, v]) => (
+                                    <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                                        <span style={{ color: 'var(--text-dim)' }}>{k}</span>
+                                        <span style={{ fontWeight: 700, color: 'var(--text-pri)', ...mono }}>{v}</span>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* What happens next */}
+                            <div style={{ marginBottom: 20 }}>
+                                {[
+                                    { icon: '📱', color: '#60a5fa', text: 'Admin notified on Telegram instantly' },
+                                    { icon: '🔍', color: '#fbbf24', text: 'We verify your ABA transfer (5–30 min)' },
+                                    { icon: '🚀', color: '#34d399', text: 'Enter the activation code to unlock Pro access' },
+                                ].map((s, i) => (
+                                    <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 10 }}>
+                                        <div style={{
+                                            width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+                                            background: `${s.color}18`, border: `1px solid ${s.color}30`,
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15,
+                                        }}>{s.icon}</div>
+                                        <div style={{ fontSize: 12, color: 'var(--text-sec)', lineHeight: 1.5, paddingTop: 6 }}>{s.text}</div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Confirm button */}
+                            <button
+                                onClick={async () => {
+                                    await sendTelegramAlert()
+                                    setCheckoutStep('done')
+                                }}
+                                style={{
+                                    width: '100%', padding: '13px', borderRadius: 9, border: 'none',
+                                    background: 'var(--grad-accent)', color: '#fff',
+                                    cursor: 'pointer', fontWeight: 800, fontSize: 13,
+                                    fontFamily: 'var(--font-ui)', letterSpacing: '0.04em', marginBottom: 10,
+                                }}
+                            >
+                                ✅ Confirm & Notify Admin
+                            </button>
+
+                            <button
+                                onClick={() => setCheckoutStep('qr')}
+                                style={{
+                                    width: '100%', padding: '10px', borderRadius: 9,
+                                    border: '1px solid var(--border)', background: 'transparent',
+                                    color: 'var(--text-dim)', cursor: 'pointer', fontSize: 12,
+                                    fontFamily: 'var(--font-ui)',
+                                }}
+                            >
+                                ← Back
+                            </button>
+                        </>
+                    )}
+
+                    {/* ── STEP 3: DONE ── */}
+                    {checkoutStep === 'done' && (
+                        <div style={{ textAlign: 'center', padding: '8px 0' }}>
+                            <div style={{ fontSize: 52, marginBottom: 14 }}>📨</div>
+                            <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-pri)', margin: '0 0 10px', letterSpacing: '-0.02em' }}>
+                                Request Sent!
+                            </h3>
+                            <p style={{ fontSize: 13, color: 'var(--text-sec)', lineHeight: 1.7, marginBottom: 20 }}>
+                                Admin has been notified on Telegram.<br />
+                                You'll receive your activation code within <strong style={{ color: 'var(--acc-main)' }}>5–30 min</strong> after payment is verified.
+                            </p>
+                            <div style={{
+                                background: '#34d39910', border: '1px solid #34d39935',
+                                borderRadius: 10, padding: '12px 16px', marginBottom: 20,
+                                fontSize: 12, color: '#34d399', lineHeight: 1.6,
+                            }}>
+                                💡 Once you receive the code on Telegram, enter it in the app to activate Pro instantly.
+                            </div>
+                            <button
+                                onClick={() => {
+                                    setShowCheckout(false)
+                                    setCheckoutStep('qr')
+                                    setBuyerTelegram('')
+                                    setNotifySent(false)
+                                }}
+                                style={{
+                                    width: '100%', padding: '13px', borderRadius: 9, border: 'none',
+                                    background: 'var(--grad-accent)', color: '#fff',
+                                    cursor: 'pointer', fontWeight: 800, fontSize: 13,
+                                    fontFamily: 'var(--font-ui)',
+                                }}
+                            >
+                                Got it — Close
+                            </button>
+                        </div>
+                    )}
+
+                </div>
+            </AIModal>
+
+            {/* ── SUCCESS MODAL ── */}
+            <AIModal show={showSuccess} onClose={() => setShowSuccess(false)} maxWidth={400}>
+                <div style={{ padding: '36px 28px', textAlign: 'center' }}>
+                    <div style={{ width: 60, height: 60, background: '#34d39915', border: '2px solid #34d39940', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, margin: '0 auto 16px' }}>✓</div>
+                    <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-pri)', marginBottom: 8 }}>Subscribed!</h2>
+                    <p style={{ fontSize: 13, color: 'var(--text-sec)', lineHeight: 1.7, marginBottom: 22 }}>Your {plan === 'yearly' ? 'Yearly Pro' : 'Monthly Pro'} plan is now active. Enjoy unlimited AI chart analysis!</p>
+                    <button onClick={() => setShowSuccess(false)} style={{ width: '100%', padding: '12px', borderRadius: 9, border: 'none', background: 'var(--grad-accent)', color: '#fff', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'var(--font-ui)' }}>Start Analyzing →</button>
+                </div>
+            </AIModal>
+
+            <style>{`
+                @keyframes aiSpin { to { transform: rotate(360deg) } }
+                @keyframes aiPulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+                @keyframes aiModalIn { from{opacity:0;transform:translateY(14px) scale(.97)} to{opacity:1;transform:translateY(0) scale(1)} }
+            `}</style>
+        </div>
+    )
+}
