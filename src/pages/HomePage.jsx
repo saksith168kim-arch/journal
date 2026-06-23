@@ -9,7 +9,7 @@
 //
 // Requires: framer-motion (already used by the previous homepage).
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion, useMotionValue, useSpring, useScroll, useTransform } from 'framer-motion'
 import { useAuth } from '../context/AuthContext'
@@ -176,43 +176,178 @@ function SectionHead({ label, title, sub, light = false, center = true }) {
 /* ──────────────────────────────────────────────────────────────────────────
    Hero — floating glass trading dashboard with 3D tilt
    ────────────────────────────────────────────────────────────────────────── */
-function EquityChart() {
-  const pts = [22, 38, 30, 52, 44, 64, 58, 78, 70, 92, 86, 108]
-  const max = 120, w = 460, h = 150, step = w / (pts.length - 1)
-  const line = pts.map((p, i) => `${i * step},${h - (p / max) * h}`).join(' ')
+
+// ─── CONFIG — replace with your free Twelve Data key ─────────────────────────
+const TWELVE_DATA_KEY = '5ddbdd6e90ac4c0a993a522bd0ddeb1a'  // get free at twelvedata.com
+const SYMBOL = 'XAU/USD'
+const REFRESH_MS = 60_000  // 60 seconds
+ 
+// ─── Hook: live XAUUSD data ───────────────────────────────────────────────────
+function useLiveXAUUSD() {
+  const [data, setData] = useState(null)   // { price, open, high, low, change, changePct, points }
+  const [status, setStatus] = useState('loading') // 'loading' | 'live' | 'mock'
+ 
+  const load = useCallback(async () => {
+    try {
+      // Quote endpoint — gives current price + OHLC for today
+      const quoteUrl = `https://api.twelvedata.com/quote?symbol=${encodeURIComponent(SYMBOL)}&apikey=${TWELVE_DATA_KEY}`
+      const qRes = await fetch(quoteUrl)
+      const q = await qRes.json()
+ 
+      if (q.status === 'error' || !q.close) throw new Error(q.message || 'API error')
+ 
+      const price     = parseFloat(q.close)
+      const open      = parseFloat(q.open)
+      const high      = parseFloat(q.high)
+      const low       = parseFloat(q.low)
+      const change    = price - open
+      const changePct = (change / open) * 100
+ 
+      // Time series for 5-day chart (weekly, 1-day interval)
+      let points = null
+      try {
+        const tsUrl = `https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(SYMBOL)}&interval=1day&outputsize=6&apikey=${TWELVE_DATA_KEY}`
+        const tsRes = await fetch(tsUrl)
+        const ts    = await tsRes.json()
+        if (ts.values && ts.values.length) {
+          // values come newest-first, reverse for chart left→right
+          points = [...ts.values].reverse().map(v => parseFloat(v.close))
+        }
+      } catch (_) { /* time series optional */ }
+ 
+      setData({ price, open, high, low, change, changePct, points })
+      setStatus('live')
+    } catch (err) {
+      // Fallback mock data so the UI never looks broken
+      setData({
+        price:     3341.85,
+        open:      3329.55,
+        high:      3358.20,
+        low:       3318.40,
+        change:    12.30,
+        changePct: 0.37,
+        points:    [3310, 3318, 3329, 3355, 3340, 3349, 3342],
+      })
+      setStatus('mock')
+    }
+  }, [])
+ 
+  useEffect(() => {
+    load()
+    const id = setInterval(load, REFRESH_MS)
+    return () => clearInterval(id)
+  }, [load])
+ 
+  return { data, status }
+}
+ 
+// ─── Equity / price chart ─────────────────────────────────────────────────────
+function EquityChart({ points }) {
+  const fallback = [22, 38, 30, 52, 44, 64, 58, 78, 70, 92, 86, 108]
+  const raw = points && points.length >= 2 ? points : fallback
+ 
+  const w = 460, h = 150
+  const step = w / (raw.length - 1)
+  const min  = Math.min(...raw)
+  const max  = Math.max(...raw)
+  const range = max - min || 1
+ 
+  const coords = raw.map((p, i) => {
+    const x = i * step
+    const y = h - ((p - min) / range) * (h * 0.85) - h * 0.08
+    return `${x.toFixed(1)},${y.toFixed(1)}`
+  })
+ 
+  const line = coords.join(' ')
   const area = `0,${h} ${line} ${w},${h}`
+ 
   return (
     <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" style={{ width: '100%', height: 150, display: 'block' }}>
       <defs>
         <linearGradient id="atj-eq" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={C.primary} stopOpacity="0.35" />
+          <stop offset="0%"   stopColor={C.primary} stopOpacity="0.35" />
           <stop offset="100%" stopColor={C.primary} stopOpacity="0" />
         </linearGradient>
       </defs>
       <polygon points={area} fill="url(#atj-eq)" />
       <motion.polyline
-        points={line} fill="none" stroke={C.primary} strokeWidth="2.5"
-        strokeLinecap="round" strokeLinejoin="round"
-        initial={{ pathLength: 0 }} whileInView={{ pathLength: 1 }}
-        viewport={{ once: true }} transition={{ duration: 1.6, ease: 'easeInOut' }}
+        points={line}
+        fill="none"
+        stroke={C.primary}
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        initial={{ pathLength: 0 }}
+        whileInView={{ pathLength: 1 }}
+        viewport={{ once: true }}
+        transition={{ duration: 1.6, ease: 'easeInOut' }}
       />
     </svg>
   )
 }
+ 
 
-function TradingDashboard() {
+ 
+// ─── Live dot indicator ───────────────────────────────────────────────────────
+function LiveDot({ status }) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, color: C.muted }}>
+      <motion.span
+        style={{
+          display: 'inline-block', width: 7, height: 7, borderRadius: '50%',
+          background: status === 'live' ? C.pos : C.muted,
+        }}
+        animate={{ opacity: [1, 0.3, 1], scale: [1, 1.3, 1] }}
+        transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+      />
+      {status === 'live' ? 'XAUUSD · 15min delay' : status === 'mock' ? 'Preview · Mock data' : 'Connecting...'}
+    </span>
+  )
+}
+ 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function fmt(n)    { return n != null ? n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—' }
+function fmtPct(n) { return n != null ? `${n >= 0 ? '+' : ''}${n.toFixed(2)}%` : '—' }
+function fmtChg(n) { return n != null ? `${n >= 0 ? '+' : ''}$${Math.abs(n).toFixed(2)}` : '—' }
+ 
+// ─── Main component (replaces old TradingDashboard) ──────────────────────────
+export function TradingDashboard() {
+  const { data, status } = useLiveXAUUSD()
   const rx = useSpring(useMotionValue(0), { stiffness: 150, damping: 18 })
   const ry = useSpring(useMotionValue(0), { stiffness: 150, damping: 18 })
-
+ 
   const onMove = (e) => {
     const r = e.currentTarget.getBoundingClientRect()
-    const px = (e.clientX - r.left) / r.width - 0.5
-    const py = (e.clientY - r.top) / r.height - 0.5
-    ry.set(px * 10)
-    rx.set(-py * 10)
+    ry.set(((e.clientX - r.left) / r.width - 0.5) * 10)
+    rx.set(-((e.clientY - r.top) / r.height - 0.5) * 10)
   }
   const onLeave = () => { rx.set(0); ry.set(0) }
-
+ 
+  const isUp    = data ? data.change >= 0 : true
+  const color   = isUp ? C.pos : C.neg
+  const arrow   = isUp ? '▲' : '▼'
+ 
+  // Price split for large display
+  const priceStr  = data ? fmt(data.price) : '—'
+  const [intPart, decPart] = priceStr.includes('.') ? priceStr.split('.') : [priceStr, '00']
+ 
+  // Stats rows
+  const STATS = data
+    ? [
+        { label: 'Open',     value: `$${fmt(data.open)}` },
+        { label: 'High',     value: `$${fmt(data.high)}`,      accent: true },
+        { label: 'Low',      value: `$${fmt(data.low)}`,       accent: false, dim: true },
+        { label: 'Change',   value: fmtChg(data.change),        accent: isUp },
+        { label: 'Change %', value: fmtPct(data.changePct),     accent: isUp },
+      ]
+    : [
+        { label: 'Open',     value: '—' },
+        { label: 'High',     value: '—' },
+        { label: 'Low',      value: '—' },
+        { label: 'Change',   value: '—' },
+        { label: 'Change %', value: '—' },
+      ]
+ 
   return (
     <div style={{ perspective: 1200, width: '100%' }}>
       <motion.div
@@ -222,51 +357,68 @@ function TradingDashboard() {
         transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
         style={{ rotateX: rx, rotateY: ry, transformStyle: 'preserve-3d', position: 'relative' }}
       >
+        {/* ── Main glass card ─────────────────────────────── */}
         <div className="atj-glass atj-dash">
+ 
+          {/* Live status indicator */}
+          <div style={{ marginBottom: 12 }}>
+            <LiveDot status={status} />
+          </div>
+ 
+          {/* Top: price + period badge */}
           <div className="atj-dash__top">
             <div>
-              <div className="atj-dash__cap">Portfolio Value</div>
-              <div className="atj-dash__value">
-                $91,134,765<span style={{ color: C.muted, fontSize: '0.55em' }}>.99</span>
+              <div className="atj-dash__cap">XAUUSD · Spot Price</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+  <div className="atj-dash__value">
+    ${intPart}
+    <span style={{ color: C.muted, fontSize: '0.55em' }}>.{decPart}</span>
+  </div>
+  <div style={{
+    width: 38, height: 38, borderRadius: 8, overflow: 'hidden',
+    flexShrink: 0, boxShadow: '0 4px 14px -4px rgba(214,154,0,0.5)',
+    border: '1px solid rgba(214,154,0,0.3)',
+  }}>
+    <svg width="38" height="38" viewBox="0 0 56 56" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h56v56H0V0z" fill="#D69A00"/>
+      <path d="M21.248 21.555h13.784l-2.01-5.393a1.17 1.17 0 00-.41-.553l-11.364 5.946zm-.038-6.401C21.698 13.842 22.772 13 23.956 13h8.151c1.184 0 2.258.842 2.747 2.154l2.009 5.393c.603 1.618-.371 3.453-1.831 3.453h-14c-1.46 0-2.433-1.835-1.831-3.453l2.01-5.393h-.001zM10.235 35.555h13.757l-2.01-5.393a1.171 1.171 0 00-.41-.553l-11.337 5.946zm-.039-6.401C10.685 27.842 11.76 27 12.943 27h8.124c1.184 0 2.259.842 2.747 2.154l2.009 5.393c.603 1.618-.37 3.453-1.831 3.453H10.017c-1.46 0-2.433-1.835-1.83-3.453l2.01-5.393zm35.89 6.401h-13.85l11.43-5.945c.179.126.323.316.413.553l2.008 5.392zM34.945 27c-1.184 0-2.259.842-2.747 2.154l-2.009 5.393c-.603 1.618.37 3.453 1.831 3.453h14.067c1.46 0 2.433-1.835 1.83-3.453l-2.01-5.393C45.422 27.842 44.348 27 43.164 27h-8.22z" fill="#fff"/>
+    </svg>
+  </div>
+</div>
+              <div className="atj-dash__pnl" style={{ color }}>
+                {arrow} {fmtChg(data?.change)} ({fmtPct(data?.changePct)}) today
               </div>
-              <div className="atj-dash__pnl">▲ +$14,832.01 (+19.44%)</div>
             </div>
-            <div className="atj-dash__period">This Month ▾</div>
+            <div className="atj-dash__period">Today ▾</div>
           </div>
-
+ 
+          {/* Body: chart + stats */}
           <div className="atj-dash__body">
             <div className="atj-dash__chart">
-              <EquityChart />
+              <EquityChart points={data?.points} />
               <div className="atj-dash__axis">
-                <span>05</span><span>06</span><span>07</span><span>08</span><span>09</span><span>10</span><span>11</span>
+                <span>Mon</span><span>Tue</span><span>Wed</span>
+                <span>Thu</span><span>Fri</span><span>Now</span>
               </div>
             </div>
+ 
             <div className="atj-dash__stats">
-              {DASH_STATS.map((s) => (
+              {STATS.map((s) => (
                 <div key={s.label} className="atj-dash__stat">
                   <span className="atj-dash__stat-l">{s.label}</span>
-                  <span className="atj-dash__stat-v" style={s.accent ? { color: C.primary } : undefined}>{s.value}</span>
+                  <span
+                    className="atj-dash__stat-v"
+                    style={s.accent ? { color: C.primary } : s.dim ? { color: C.neg } : undefined}
+                  >
+                    {s.value}
+                  </span>
                 </div>
               ))}
             </div>
           </div>
-
-          <div className="atj-dash__crypto">
-            {CRYPTO.map((c, i) => (
-              <motion.span
-                key={i}
-                className="atj-coin"
-                style={{ background: `linear-gradient(135deg, ${c.from}, ${c.to})` }}
-                animate={{ y: [0, -6, 0] }}
-                transition={{ duration: 3 + i * 0.4, repeat: Infinity, ease: 'easeInOut' }}
-              >
-                {c.sym}
-              </motion.span>
-            ))}
-          </div>
         </div>
-
-        {/* floating mini widgets */}
+ 
+        {/* ── Floating badge: top-right (Monthly Return — unchanged) ── */}
         <motion.div
           className="atj-glass atj-float atj-float--tr"
           animate={{ y: [0, 10, 0] }}
@@ -275,15 +427,18 @@ function TradingDashboard() {
           <div className="atj-float__l">Monthly Return</div>
           <div className="atj-float__v" style={{ color: C.pos }}>+19.44%</div>
         </motion.div>
-
+ 
+        {/* ── Floating badge: bottom-left (Live XAUUSD price) ── */}
         <motion.div
           className="atj-glass atj-float atj-float--bl"
           animate={{ y: [0, -10, 0] }}
           transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
         >
-          <div className="atj-float__l">Win Rate</div>
-          <div className="atj-float__v">68.26%</div>
-          <Spark />
+          <div className="atj-float__l">XAUUSD Live</div>
+          <div className="atj-float__v" style={{ color: data ? color : C.muted }}>
+            {data ? `$${fmt(data.price)}` : 'Loading...'}
+          </div>
+          <Spark stroke={color} />
         </motion.div>
       </motion.div>
     </div>

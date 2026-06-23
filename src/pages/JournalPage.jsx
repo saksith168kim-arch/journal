@@ -10,7 +10,7 @@ import Layout from '../components/layout/Layout'
 import { useLang } from '../context/LanguageContext'
 
 const STRATEGIES = ['Breakout', 'Trend Following', 'Mean Reversion', 'Scalping', 'Swing Trade', 'Momentum', 'News Play', 'Options Strategy', 'Custom']
-
+const PAGE_SIZE = 50
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const fmtUSD = (n) => (n == null ? '—' : (n < 0 ? '-' : '') + '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' USD')
 const fmtPnl = (n) => {
@@ -23,49 +23,92 @@ const fmtPnl = (n) => {
 const CHART_COLORS = ['#6b7ff7', '#f59e0b', '#ec4899', '#34d399', '#f87171', '#60a5fa']
 
 // ─── Donut chart ──────────────────────────────────────────────────────────────
-function DonutChart({ slices, mode }) {
-  const total = slices.reduce((s, x) => s + x.value, 0)
+function DonutChart({ slices, mode, centerLabel }) {
+  // For winrate mode, each slice should be proportional to its own winrate
+  // We normalize by showing each symbol's winrate as a fraction of the total
+  const values = slices.map(s => s.value)
+  const total = values.reduce((s, x) => s + x, 0)
+
   let cumul = 0
-  const R = 70, C = 90, SW = 22
+  const R = 70, CX = 90, SW = 22
   const paths = slices.map((sl, i) => {
     const pct = total > 0 ? sl.value / total : 0
     if (pct <= 0) return null
-    if (pct >= 1) return <circle key={i} cx={C} cy={C} r={R} fill="none" stroke={CHART_COLORS[i % CHART_COLORS.length]} strokeWidth={SW} />
+    if (pct >= 1) return (
+      <circle key={i} cx={CX} cy={CX} r={R} fill="none"
+        stroke={CHART_COLORS[i % CHART_COLORS.length]} strokeWidth={SW} />
+    )
     const startAngle = cumul * 2 * Math.PI - Math.PI / 2
     cumul += pct
     const endAngle = cumul * 2 * Math.PI - Math.PI / 2
-    const x1 = C + R * Math.cos(startAngle), y1 = C + R * Math.sin(startAngle)
-    const x2 = C + R * Math.cos(endAngle), y2 = C + R * Math.sin(endAngle)
-    return <path key={i} d={`M ${x1} ${y1} A ${R} ${R} 0 ${pct > 0.5 ? 1 : 0} 1 ${x2} ${y2}`} fill="none" stroke={CHART_COLORS[i % CHART_COLORS.length]} strokeWidth={SW} strokeLinecap="butt" />
+    const x1 = CX + R * Math.cos(startAngle), y1 = CX + R * Math.sin(startAngle)
+    const x2 = CX + R * Math.cos(endAngle), y2 = CX + R * Math.sin(endAngle)
+    return (
+      <path key={i}
+        d={`M ${x1} ${y1} A ${R} ${R} 0 ${pct > 0.5 ? 1 : 0} 1 ${x2} ${y2}`}
+        fill="none" stroke={CHART_COLORS[i % CHART_COLORS.length]}
+        strokeWidth={SW} strokeLinecap="butt" />
+    )
   })
+
   return (
-    <svg viewBox={`0 0 ${C * 2} ${C * 2}`} style={{ width: 140, height: 140 }}>
-      <circle cx={C} cy={C} r={R} fill="none" stroke="var(--border)" strokeWidth={SW} />
+    <svg viewBox={`0 0 ${CX * 2} ${CX * 2}`} style={{ width: 140, height: 140 }}>
+      <circle cx={CX} cy={CX} r={R} fill="none" stroke="var(--border)" strokeWidth={SW} />
       {paths}
+      {centerLabel && (
+        <>
+          <text x={CX} y={CX - 4} textAnchor="middle" fontSize="18" fontWeight="800"
+            fill="var(--text-pri)" fontFamily="var(--font-mono)">{centerLabel.main}</text>
+          <text x={CX} y={CX + 14} textAnchor="middle" fontSize="9"
+            fill="var(--text-dim)" fontFamily="var(--font-ui)">{centerLabel.sub}</text>
+        </>
+      )}
     </svg>
   )
 }
 
 // ─── Equity curve ─────────────────────────────────────────────────────────────
-function EquityLine({ trades }) {
+function EquityLine({ trades, range }) {
   const points = useMemo(() => {
+    const now = new Date()
+    const cutoff = range === '1W' ? new Date(now - 7 * 864e5)
+      : range === '1M' ? new Date(now - 30 * 864e5)
+      : range === '3M' ? new Date(now - 90 * 864e5)
+      : null
+
     let cum = 0
-    return [...trades].filter(t => t.date && t.status !== 'OPEN')
+    return [...trades]
+      .filter(t => t.date && t.status !== 'OPEN')
       .sort((a, b) => new Date(a.date) - new Date(b.date))
+      .filter(t => !cutoff || new Date(t.date) >= cutoff)
       .map(t => { cum += calcTrade(t).netPnl ?? 0; return cum })
-  }, [trades])
-  if (points.length < 2) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-dim)', fontSize: 13 }}>Not enough data</div>
-  const W = 860, H = 220, min = Math.min(...points), max = Math.max(...points), range = max - min || 1
+  }, [trades, range])
+
+  if (points.length < 2) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-dim)', fontSize: 13 }}>
+      Not enough data
+    </div>
+  )
+
+  const W = 860, H = 220, min = Math.min(...points), max = Math.max(...points), range2 = max - min || 1
   const xs = points.map((_, i) => (i / (points.length - 1)) * W)
-  const ys = points.map(p => H - ((p - min) / range) * (H - 20) - 10)
+  const ys = points.map(p => H - ((p - min) / range2) * (H - 20) - 10)
   const area = `M ${xs[0]},${H} ` + xs.map((x, i) => `L ${x},${ys[i]}`).join(' ') + ` L ${xs[xs.length - 1]},${H} Z`
+
   return (
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: '100%' }} preserveAspectRatio="none">
-      <defs><linearGradient id="eq-grad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--acc-main)" stopOpacity="0.35" /><stop offset="100%" stopColor="var(--acc-main)" stopOpacity="0.02" /></linearGradient></defs>
+      <defs>
+        <linearGradient id="eq-grad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="var(--acc-main)" stopOpacity="0.35" />
+          <stop offset="100%" stopColor="var(--acc-main)" stopOpacity="0.02" />
+        </linearGradient>
+      </defs>
       <path d={area} fill="url(#eq-grad)" />
       <polyline points={xs.map((x, i) => `${x},${ys[i]}`).join(' ')} fill="none" stroke="var(--acc-main)" strokeWidth="2" strokeLinejoin="round" />
       <rect x={W - 68} y={ys[ys.length - 1] - 11} width={66} height={22} rx={4} fill="var(--acc-main)" />
-      <text x={W - 35} y={ys[ys.length - 1] + 5} fill="var(--text-inv)" fontSize="11" textAnchor="middle" fontFamily="var(--font-mono)">{fmtPnl(points[points.length - 1])}</text>
+      <text x={W - 35} y={ys[ys.length - 1] + 5} fill="var(--text-inv)" fontSize="11" textAnchor="middle" fontFamily="var(--font-mono)">
+        {fmtPnl(points[points.length - 1])}
+      </text>
     </svg>
   )
 }
@@ -272,7 +315,9 @@ function handleBalanceSave() {
   }, [trades])
 
 const [assetMode, setAssetMode] = useState('volume')
-
+const [equityRange, setEquityRange] = useState('All')  // ← add this
+const [page, setPage] = useState(1)
+const [calendarDateFilter, setCalendarDateFilter] = useState(null)
 const assetMap = useMemo(() => {
   const map = {}
   trades.forEach(tr => {
@@ -322,7 +367,7 @@ const totalAsset = assetMap.reduce((s, [, v]) => s + v[assetMode], 0)
 
       {/* ── Top metric strip — scrollable on mobile ── */}
       <div style={{ overflowX: 'auto', marginBottom: 10, WebkitOverflowScrolling: 'touch' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,minmax(130px,1fr))', gap: 1, background: 'var(--border)', borderRadius: 8, overflow: 'hidden', minWidth: 480 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,minmax(130px,1fr))', gap: 1, background: 'var(--border)', borderRadius: 8, overflow: 'hidden', minWidth: 320 }}>
           {(() => {
   const balance = startingBalance + calStats.totalNet
   const equity = startingBalance + calStats.totalNet + calStats.unrealized
@@ -424,7 +469,20 @@ const totalAsset = assetMap.reduce((s, [, v]) => s + v[assetMode], 0)
   </div>
   <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
     {assetMap.length > 0 ? <>
-      <DonutChart slices={assetMap.map(([, v]) => ({ value: v[assetMode] }))} />
+      <DonutChart
+  slices={assetMap.map(([, v]) => ({
+    // For winrate: use raw winrate values (they already sum meaningfully per symbol)
+    // We normalize across symbols so total = 100% visually
+    value: assetMode === 'winrate' ? v.winrate : v[assetMode]
+  }))}
+  centerLabel={
+    assetMode === 'winrate'
+      ? { main: (assetMap.reduce((s,[,v]) => s + v.winrate, 0) / (assetMap.length || 1)).toFixed(0) + '%', sub: 'avg win rate' }
+      : assetMode === 'trades'
+      ? { main: totalAsset, sub: 'total trades' }
+      : { main: '$' + (totalAsset >= 1000 ? (totalAsset/1000).toFixed(1)+'K' : totalAsset.toFixed(0)), sub: 'total volume' }
+  }
+/>
       <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 5 }}>
         {assetMap.map(([sym, val], i) => (
           <div key={sym} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -448,11 +506,18 @@ const totalAsset = assetMap.reduce((s, [, v]) => s + v[assetMode], 0)
             <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-mut)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Balance / Equity</span>
             <div style={{ display: 'flex', gap: 4 }}>
               {['1W', '1M', '3M', 'All'].map(l => (
-                <button key={l} style={{ background: l === 'All' ? 'var(--acc-subtle)' : 'transparent', border: 'none', color: l === 'All' ? 'var(--acc-main)' : 'var(--text-mut)', fontSize: 10, padding: '3px 6px', borderRadius: 4, cursor: 'pointer', fontWeight: 600 }}>{l}</button>
-              ))}
+  <button key={l}
+    onClick={() => setEquityRange(l)}
+    style={{
+      background: equityRange === l ? 'var(--acc-subtle)' : 'transparent',
+      border: 'none',
+      color: equityRange === l ? 'var(--acc-main)' : 'var(--text-mut)',
+      fontSize: 10, padding: '3px 6px', borderRadius: 4, cursor: 'pointer', fontWeight: 600
+    }}>{l}</button>
+))}
             </div>
           </div>
-          <div style={{ padding: '8px 16px 16px', height: 200, boxSizing: 'border-box' }}><EquityLine trades={trades} /></div>
+          <div style={{ padding: '8px 16px 16px', height: 200, boxSizing: 'border-box' }}><EquityLine trades={trades} range={equityRange} /></div>
         </div>
       </div>
 
