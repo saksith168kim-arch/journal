@@ -4,6 +4,7 @@ import {
   onAuthStateChanged,
   signInWithPopup,
   signInWithEmailAndPassword,
+   getRedirectResult,
   createUserWithEmailAndPassword,
   signOut,
   updateProfile,
@@ -99,27 +100,43 @@ export function AuthProvider({ children }) {
   const [userProfile, setUserProfile] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (u) => {
-      if (u) {
-        const profile = await syncUserProfile(u)
-        setUser(u)
-        setUserProfile(profile)
-      } else {
-        setUser(null)
-        setUserProfile(null)
-      }
-      setLoading(false)
-    })
-    return unsub
-  }, [])
+useEffect(() => {
+  // Handle redirect result (Safari/mobile)
+  getRedirectResult(auth).then(async (result) => {
+    if (result?.user) {
+      const profile = await syncUserProfile(result.user)
+      setUserProfile(profile)
+    }
+  }).catch(() => {})
 
+  const unsub = onAuthStateChanged(auth, async (u) => {
+    if (u) {
+      const profile = await syncUserProfile(u)
+      setUser(u)
+      setUserProfile(profile)
+    } else {
+      setUser(null)
+      setUserProfile(null)
+    }
+    setLoading(false)
+  })
+  return unsub
+}, [])
   // AuthContext.jsx
 const loginWithGoogle = async () => {
-  const cred = await signInWithPopup(auth, googleProvider)
-  const profile = await syncUserProfile(cred.user)
-  setUserProfile(profile)
-  return cred
+  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+
+  if (isSafari || isMobile) {
+    // Use redirect for Safari/mobile
+    await signInWithRedirect(auth, googleProvider)
+  } else {
+    // Use popup for desktop
+    const cred = await signInWithPopup(auth, googleProvider)
+    const profile = await syncUserProfile(cred.user)
+    setUserProfile(profile)
+    return cred
+  }
 }
   const loginWithEmail = async (email, password) => {
     const cred = await signInWithEmailAndPassword(auth, email, password)
